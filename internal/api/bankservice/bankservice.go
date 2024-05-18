@@ -4,7 +4,6 @@ import (
 	"bankingApp/internal/api/constants"
 	"bankingApp/internal/model"
 	"bankingApp/internal/utility"
-	"errors"
 	"fmt"
 	"log/slog"
 	"net/http"
@@ -250,6 +249,7 @@ func (b *BankTransferService) isTransactionCreated(t transactionCreatedDTO) bool
 				CreatedAt: timestamp,
 			},
 		}
+
 		dbError := b.TransactionRepository.SaveTransaction(transaction)
 		if dbError != nil {
 			slog.Error(dbError.Error())
@@ -259,7 +259,6 @@ func (b *BankTransferService) isTransactionCreated(t transactionCreatedDTO) bool
 
 		return true
 	}
-
 	return false
 }
 
@@ -288,9 +287,6 @@ func (b *BankTransferService) isSuccessfulTransaction(t model.TransactionRequest
 }
 
 func (b *BankTransferService) handleDebit(amount decimal.Decimal, account *model.Account) error {
-	if account.IsInsufficientBalance(amount) {
-		return errors.New("insufficient funds")
-	}
 	return account.Withdraw(amount)
 }
 

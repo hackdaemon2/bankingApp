@@ -121,6 +121,9 @@ func (app *App) RouteHandler(config model.IAppConfiguration) *gin.Engine {
 	groupRoute.Use(loggingMiddleware.RequestLogger())
 	groupRoute.Use(loggingMiddleware.ResponseLogger())
 
+	securityMiddleware := middleware.SecurityMiddleware{}
+	groupRoute.Use(securityMiddleware.RequestHeaders())
+
 	groupRoute.POST("/fund-transfer", app.bankTransferHandler.Transfer)
 	groupRoute.GET("/status-query/:ref", app.bankTransferHandler.StatusQuery)
 	return route
