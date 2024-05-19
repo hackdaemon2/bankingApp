@@ -19,11 +19,11 @@ import (
 var headers = map[string]string{constants.ContentTypeHeader: constants.ContentTypeValue}
 
 type IAccount interface {
-	SetBalance(value decimal.Decimal)
-	GetBalance() decimal.Decimal
-	Deposit(amount decimal.Decimal) error
-	Withdraw(amount decimal.Decimal) error
-	IsInsufficientBalance(amount decimal.Decimal) bool
+	SetBalance(value model.Money)
+	GetBalance() model.Money
+	Deposit(amount model.Money) error
+	Withdraw(amount model.Money) error
+	IsInsufficientBalance(amount model.Money) bool
 }
 
 type IAccountRepository interface {
@@ -106,7 +106,9 @@ func (b *BankTransferService) StatusQuery(c *gin.Context) {
 		return
 	}
 
-	amount, err := decimal.NewFromFloat64(response["amount"].(float64))
+	val, err := decimal.NewFromFloat64(response["amount"].(float64))
+	amount := model.Money{Decimal: val}
+
 	if err != nil {
 		utility.HandleError(c, err, http.StatusInternalServerError, constants.ApplicationError)
 		return
@@ -288,10 +290,10 @@ func (b *BankTransferService) isSuccessfulTransaction(t model.TransactionRequest
 	return true
 }
 
-func (b *BankTransferService) handleDebit(amount decimal.Decimal, account *model.Account) error {
+func (b *BankTransferService) handleDebit(amount model.Money, account *model.Account) error {
 	return account.Withdraw(amount)
 }
 
-func (b *BankTransferService) handleCredit(amount decimal.Decimal, account *model.Account) error {
+func (b *BankTransferService) handleCredit(amount model.Money, account *model.Account) error {
 	return account.Deposit(amount)
 }

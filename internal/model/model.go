@@ -25,49 +25,55 @@ type Account struct {
 	AccountID     uint   `gorm:"primaryKey"`
 	UserID        uint   // Foreign key referencing the User table
 	AccountNumber string `gorm:"index:idx_account_number;unique"`
-	Balance       decimal.Decimal
+	Balance       Money
 	mu            sync.Mutex `gorm:"-"`
 	TimestampData
 }
 
-func (acc *Account) SetBalance(value decimal.Decimal) {
+func (acc *Account) SetBalance(value Money) {
 	acc.Balance = value
 }
 
-func (acc *Account) GetBalance() decimal.Decimal {
+func (acc *Account) GetBalance() Money {
 	return acc.Balance
 }
 
 const scale = 2
 
-func (acc *Account) Deposit(amount decimal.Decimal) error {
+func (acc *Account) Deposit(amount Money) error {
 	acc.mu.Lock()
 	defer acc.mu.Unlock()
-	newBalance, err := acc.GetBalance().AddExact(amount, scale)
+	floatVal, _ := amount.Float64()
+	val, _ := decimal.NewFromFloat64(floatVal)
+	newBalance, err := acc.GetBalance().AddExact(val, scale)
 	if err != nil {
 		return err
 	}
-	acc.SetBalance(newBalance)
+	acc.SetBalance(Money{Decimal: newBalance})
 	return nil
 }
 
-func (acc *Account) Withdraw(amount decimal.Decimal) error {
+func (acc *Account) Withdraw(amount Money) error {
 	acc.mu.Lock()
 	defer acc.mu.Unlock()
-	newBalance, err := acc.GetBalance().SubExact(amount, scale)
+	floatVal, _ := amount.Float64()
+	val, _ := decimal.NewFromFloat64(floatVal)
+	newBalance, err := acc.GetBalance().SubExact(val, scale)
 	if err != nil {
 		return err
 	}
-	acc.SetBalance(newBalance)
+	acc.SetBalance(Money{Decimal: newBalance})
 	return nil
 }
 
 const insufficientBalanceFlag = -1
 
-func (acc *Account) IsInsufficientBalance(amount decimal.Decimal) bool {
+func (acc *Account) IsInsufficientBalance(amount Money) bool {
 	acc.mu.Lock()
 	defer acc.mu.Unlock()
-	return acc.GetBalance().Cmp(amount) == insufficientBalanceFlag
+	floatVal, _ := amount.Float64()
+	val, _ := decimal.NewFromFloat64(floatVal)
+	return acc.GetBalance().Cmp(val) == insufficientBalanceFlag
 }
 
 type Transaction struct {
@@ -75,7 +81,7 @@ type Transaction struct {
 	AccountID        uint   `gorm:"index"`
 	Reference        string `gorm:"index:idx_reference;unique"`
 	PaymentReference string `gorm:"column:payment_reference;index:idx_payment_reference;unique"`
-	Amount           decimal.Decimal
+	Amount           Money
 	Type             TransactionType
 	Success          bool
 	TransactionTime  time.Time

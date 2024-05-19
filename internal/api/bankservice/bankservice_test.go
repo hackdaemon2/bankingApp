@@ -1,4 +1,4 @@
-package bankservice_test
+package bankservice_test //nolint:typecheck
 
 import (
 	"bankingApp/internal/api/bankservice"
@@ -26,7 +26,7 @@ type (
 	MockRestHttpClient        struct{ mock.Mock }
 
 	MockAccount struct {
-		Balance decimal.Decimal
+		Balance model.Money
 		mock.Mock
 	}
 
@@ -58,44 +58,44 @@ func (w *GinResponseWriter) Write(data []byte) (int, error) {
 }
 
 func (u *MockUserRepository) GetUserByAccountNumber(accountNumber string) (*model.User, *model.Account, error) {
-	args := u.Called(accountNumber) // nolint:typecheck
+	args := u.Called(accountNumber)
 	return args.Get(0).(*model.User), args.Get(1).(*model.Account), args.Error(2)
 }
 
 func (u *MockUserRepository) FindUserByUsername(username string) (model.User, error) {
-	args := u.Called(username) // nolint:typecheck
+	args := u.Called(username)
 	return args.Get(0).(model.User), args.Error(1)
 }
 
 func (m *MockTransactionRepository) FindTransaction(id uint) (*model.Transaction, error) {
-	args := m.Called(id) // nolint:typecheck
+	args := m.Called(id)
 	return args.Get(0).(*model.Transaction), args.Error(1)
 }
 
 func (m *MockTransactionRepository) SaveTransaction(transaction *model.Transaction) error {
-	args := m.Called(transaction) // nolint:typecheck
+	args := m.Called(transaction)
 	return args.Error(0)
 }
 
 func (m *MockTransactionRepository) FindTransactionByReference(reference string) (*model.Transaction, error) {
-	args := m.Called(reference) // nolint:typecheck
+	args := m.Called(reference)
 	return args.Get(0).(*model.Transaction), args.Error(1)
 }
 
 func (a *MockAccountRepository) SaveAccount(account *model.Account) error {
-	args := a.Called(account) // nolint:typecheck
+	args := a.Called(account)
 	return args.Error(0)
 }
 
 func (a *MockAccountRepository) GetAccountByAccountNumber(number string) (*model.Account, error) {
-	args := a.Called(number) // nolint:typecheck
+	args := a.Called(number)
 	return args.Get(0).(*model.Account), args.Error(1)
 }
 
 func (m *MockRestHttpClient) GetRequest(
 	url string,
 	headers map[string]string) (map[string]interface{}, int, error) {
-	args := m.Called(url, headers) // nolint:typecheck
+	args := m.Called(url, headers)
 	return args.Get(0).(map[string]interface{}), args.Int(1), args.Error(2)
 }
 
@@ -103,39 +103,53 @@ func (m *MockRestHttpClient) PostRequest(
 	url string,
 	request interface{},
 	headers map[string]string) (map[string]interface{}, int, error) {
-	args := m.Called(url, request, headers) // nolint:typecheck
+	args := m.Called(url, request, headers)
 	return args.Get(0).(map[string]interface{}), args.Int(1), args.Error(2)
 }
 
-func (m *MockAccount) SetBalance(value decimal.Decimal) {
+func (m *MockAccount) SetBalance(value model.Money) {
 	m.Balance = value
 }
 
-func (m *MockAccount) GetBalance() decimal.Decimal {
+func (m *MockAccount) GetBalance() model.Money {
 	return m.Balance
 }
 
-func (m *MockAccount) Deposit(amount decimal.Decimal) error {
+func (m *MockAccount) Deposit(amount model.Money) error {
 	if !amount.IsPos() {
 		return errors.New("cannot deposit negative amount")
 	}
-	m.Balance, _ = m.Balance.Add(amount)
+	balanceValFloat, _ := m.Balance.Float64()
+	balanceVal, _ := decimal.NewFromFloat64(balanceValFloat)
+	amountValFloat, _ := amount.Float64()
+	amountVal, _ := decimal.NewFromFloat64(amountValFloat)
+	balanceVal, _ = balanceVal.Add(amountVal)
+	m.Balance = model.Money{Decimal: balanceVal}
 	return nil
 }
 
-func (m *MockAccount) Withdraw(amount decimal.Decimal) error {
+func (m *MockAccount) Withdraw(amount model.Money) error {
 	if !amount.IsPos() {
 		return errors.New("cannot withdraw negative amount")
 	}
-	if m.Balance.Cmp(amount) == -1 {
+	balanceValFloat, _ := m.Balance.Float64()
+	balanceVal, _ := decimal.NewFromFloat64(balanceValFloat)
+	amountValFloat, _ := amount.Float64()
+	amountVal, _ := decimal.NewFromFloat64(amountValFloat)
+	if balanceVal.Cmp(amountVal) == -1 {
 		return errors.New("insufficient balance")
 	}
-	m.Balance, _ = m.Balance.Sub(amount)
+	balanceVal, _ = balanceVal.Sub(amountVal)
+	m.Balance = model.Money{Decimal: balanceVal}
 	return nil
 }
 
-func (m *MockAccount) IsInsufficientBalance(amount decimal.Decimal) bool {
-	return m.Balance.Cmp(amount) == -1
+func (m *MockAccount) IsInsufficientBalance(amount model.Money) bool {
+	amountValFloat, _ := amount.Float64()
+	amountVal, _ := decimal.NewFromFloat64(amountValFloat)
+	balanceValFloat, _ := m.Balance.Float64()
+	balanceVal, _ := decimal.NewFromFloat64(balanceValFloat)
+	return balanceVal.Cmp(amountVal) == -1
 }
 
 func setupMocks() (*MockConfig, *MockTransactionRepository, *MockUserRepository,
@@ -172,7 +186,8 @@ func Test_NewBankService(t *testing.T) {
 }
 
 func Test_StatusQuery(t *testing.T) {
-	amount, _ := decimal.NewFromFloat64(100.00)
+	val, _ := decimal.NewFromFloat64(100.00)
+	amount := model.Money{Decimal: val}
 	testCases := []struct {
 		name             string
 		reference        string
@@ -252,10 +267,10 @@ func Test_StatusQuery(t *testing.T) {
 			mockConfig.On("ThirdPartyBaseUrl").Return(mock.Anything)
 
 			mockTransactionRepo.
-				On("FindTransactionByReference", tt.reference).Return(tt.mockTransaction, tt.dbError) // nolint:typecheck
+				On("FindTransactionByReference", tt.reference).Return(tt.mockTransaction, tt.dbError)
 
 			mockRestClient.
-				On("GetRequest", mock.Anything, mock.Anything).Return(tt.restResponse, tt.restStatusCode, tt.restError) // nolint:typecheck
+				On("GetRequest", mock.Anything, mock.Anything).Return(tt.restResponse, tt.restStatusCode, tt.restError)
 
 			recorder := httptest.NewRecorder()
 			ctx, _ := gin.CreateTestContext(recorder)
@@ -283,7 +298,10 @@ func Test_StatusQuery(t *testing.T) {
 }
 
 func Test_Transfer(t *testing.T) {
-	amount, _ := decimal.NewFromFloat64(100.00)
+	val, _ := decimal.NewFromFloat64(100.00)
+	amount := model.Money{Decimal: val}
+	valInsufficientFunds, _ := decimal.NewFromFloat64(1_000_000_000.00)
+	amountInsufficientFunds := model.Money{Decimal: valInsufficientFunds}
 	testCases := []struct {
 		name                      string
 		mockTransaction           *model.Transaction
@@ -390,6 +408,28 @@ func Test_Transfer(t *testing.T) {
 				"debit",
 				amount),
 		},
+		{
+			name:             "insufficient funds for debit test case",
+			mockTransaction:  getMockNotFoundTransaction(),
+			restStatusCode:   http.StatusOK,
+			restError:        nil,
+			dbError:          nil,
+			mockAccount:      getMockAccount(),
+			expectedResponse: getErrorResponse(constants.InsufficientFunds),
+			expectedStatus:   http.StatusOK,
+			config:           getMockConfig(),
+			requestBody: getTransactionRequest(
+				"1234567890",
+				"johndoe",
+				"1234",
+				"289192938929293",
+				model.DebitTransaction,
+				amountInsufficientFunds),
+			mockUser:                  getMockUser(),
+			insufficientBalance:       true,
+			transactionTypeSuccessful: false,
+			transactionType:           model.DebitTransaction,
+		},
 	}
 	for _, tt := range testCases {
 		t.Run(tt.name, func(t *testing.T) {
@@ -403,27 +443,27 @@ func Test_Transfer(t *testing.T) {
 				Return(mock.Anything)
 
 			mockTransactionRepo.
-				On("FindTransactionByReference", mock.Anything).Return(tt.mockTransaction, tt.dbError) // nolint:typecheck
+				On("FindTransactionByReference", mock.Anything).Return(tt.mockTransaction, tt.dbError)
 
 			mockTransactionRepo.
-				On("SaveTransaction", mock.Anything).Return(tt.dbError) // nolint:typecheck
+				On("SaveTransaction", mock.Anything).Return(tt.dbError)
 
 			mockAccountRepo.
-				On("SaveAccount", mock.Anything).Return(tt.dbError) // nolint:typecheck
+				On("SaveAccount", mock.Anything).Return(tt.dbError)
 
 			mockRestClient.
 				On("PostRequest", mock.Anything, mock.Anything, mock.Anything).
-				Return(tt.restResponse, tt.restStatusCode, tt.restError) // nolint:typecheck
+				Return(tt.restResponse, tt.restStatusCode, tt.restError)
 
 			mockUserRepo.
-				On("GetUserByAccountNumber", mock.Anything).Return(tt.mockUser, tt.mockAccount, nil) // nolint:typecheck
+				On("GetUserByAccountNumber", mock.Anything).Return(tt.mockUser, tt.mockAccount, nil)
 
-			mockAccount.On("IsInsufficientBalance", mock.Anything).Return(tt.insufficientBalance) // nolint:typecheck
+			mockAccount.On("IsInsufficientBalance", mock.Anything).Return(tt.insufficientBalance)
 
 			if tt.transactionType == model.DebitTransaction {
-				mockAccount.On("Withdraw", mock.Anything).Return(tt.transactionTypeSuccessful) // nolint:typecheck
+				mockAccount.On("Withdraw", mock.Anything).Return(tt.transactionTypeSuccessful)
 			} else if tt.transactionType == model.CreditTransaction {
-				mockAccount.On("Deposit", mock.Anything).Return(tt.transactionTypeSuccessful) // nolint:typecheck
+				mockAccount.On("Deposit", mock.Anything).Return(tt.transactionTypeSuccessful)
 			}
 
 			req, err := http.NewRequest("POST", "/api/v1/bank/fund-transfer", bytes.NewBuffer(tt.requestBody))
@@ -486,7 +526,7 @@ func getMockNotFoundTransaction() *model.Transaction {
 	}
 }
 
-func getExpectedResponse(amount decimal.Decimal) utility.APIResponse {
+func getExpectedResponse(amount model.Money) utility.APIResponse {
 	return utility.APIResponse{
 		Data: model.ResponseDTO{
 			ThirdPartyTransactionDataDTO: model.ThirdPartyTransactionDataDTO{
@@ -523,7 +563,7 @@ func getMockAccount() *model.Account {
 		AccountID:     1,
 		AccountNumber: "1234567890",
 		UserID:        1,
-		Balance:       balance,
+		Balance:       model.Money{Decimal: balance},
 	}
 }
 
@@ -536,7 +576,7 @@ func getMockUser() *model.User {
 }
 
 func getTransactionRequest(account, username, pin, reference string,
-	transactionType model.TransactionType, amount decimal.Decimal) []byte {
+	transactionType model.TransactionType, amount model.Money) []byte {
 	requestBody, _ := json.Marshal(model.TransactionRequestDTO{
 		TransactionDataDTO: model.TransactionDataDTO{
 			AccountNumber:  account,

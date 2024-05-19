@@ -52,7 +52,7 @@ func Float64ToDecimalHookFunc(from reflect.Type, to reflect.Type, data interface
 		return data, nil
 	}
 
-	if to != reflect.TypeOf(decimal.Decimal{}) {
+	if to != reflect.TypeOf(model.Money{}) {
 		return data, nil
 	}
 

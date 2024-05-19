@@ -1,4 +1,4 @@
-package handler_test
+package handler_test // nolint:typecheck
 
 import (
 	handler "bankingApp/internal/api/handlers"
@@ -25,11 +25,11 @@ func (g *GinResponseWriter) Write(data []byte) (int, error) {
 }
 
 func (m *MockBankTransferService) StatusQuery(context *gin.Context) {
-	m.Called(context).Get(0) // nolint:typecheck
+	m.Called(context).Get(0)
 }
 
 func (m *MockBankTransferService) Transfer(context *gin.Context) {
-	m.Called(context).Get(0) // nolint:typecheck
+	m.Called(context).Get(0)
 }
 
 func Test_NewBankTransferHandler(t *testing.T) {
