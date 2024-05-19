@@ -1,0 +1,14 @@
+DbUser: root
+DbHost: localhost
+DbPort: 3306
+DbPass: ""
+DbName: banking_application
+DbMaxOpen: 10
+DbMaxIdle: 60
+DbMaxTime: 60
+DbMaxConn: 2
+AppReadTimeout: 30
+AppServerPort: 3000
+ThirdPartyAPI: "https://730baab5-3f7b-4b79-be61-2b854a76ecf6.mock.pstmn.io"
+GinRunMode: debug
+Secret: "eyJ0eXAiOiJKV1QiLCJhbGciOiJIUzUxMiJ9.Tc4MTcyMjEyMCwic3ViIjoiaXNzIjoiY2VsbHVsYW50LXBheW"

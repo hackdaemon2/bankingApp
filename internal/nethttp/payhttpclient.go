@@ -16,8 +16,8 @@ type RestHttpClient struct {
 	Timeout time.Duration
 }
 
-// New creates a new instance of RestHttpClient
-func New(timeout time.Duration) *RestHttpClient {
+// NewRestHttpClient creates a new instance of RestHttpClient
+func NewRestHttpClient(timeout time.Duration) *RestHttpClient {
 	return &RestHttpClient{
 		Timeout: timeout,
 	}
@@ -43,8 +43,11 @@ func (h *RestHttpClient) logRequest(url string, request interface{}) error {
 	slog.Info(fmt.Sprintf("url => %s", url))
 
 	if request == nil {
+		slog.Info("method => GET")
 		return nil
 	}
+
+	slog.Info("method => POST")
 
 	var requestBody []byte
 	requestBody, err := json.Marshal(request)
@@ -53,7 +56,7 @@ func (h *RestHttpClient) logRequest(url string, request interface{}) error {
 		return err
 	}
 
-	slog.Info(string(requestBody))
+	slog.Info(fmt.Sprintf("Request => %s", string(requestBody)))
 	return nil
 }
 
@@ -65,7 +68,7 @@ func (h *RestHttpClient) logResponse(response interface{}) error {
 		slog.Error(err.Error())
 		return err
 	}
-	slog.Info(string(responseBody))
+	slog.Info(fmt.Sprintf("Response => %s", string(responseBody)))
 	return nil
 }
 

@@ -4,17 +4,14 @@ import (
 	"bankingApp/internal/api/bankservice"
 	"bankingApp/internal/api/handlers"
 	"bankingApp/internal/api/middleware"
-	"bankingApp/internal/api/migration"
 	"bankingApp/internal/model"
 	"bankingApp/internal/nethttp"
 	"bankingApp/internal/repository"
-	"errors"
 	"fmt"
 	"log"
 	"time"
 
 	"github.com/gin-gonic/gin"
-	"github.com/joho/godotenv"
 	"gorm.io/driver/mysql"
 	"gorm.io/gorm"
 	"gorm.io/gorm/logger"
@@ -32,14 +29,10 @@ type App struct {
 func NewApp() *App {
 	app := &App{}
 
-	var err error
-	app.Configuration, err = app.loadEnv()
-	if err != nil {
-		panic(err)
-	}
+	app.Configuration = newAppConfiguration()
 
 	var dbErr error
-	app.DB, dbErr = app.ConnectDatabase(app.Configuration)
+	app.DB, dbErr = app.connectDatabase(app.Configuration)
 	if dbErr != nil {
 		panic(dbErr)
 	}
@@ -50,9 +43,9 @@ func NewApp() *App {
 
 	timeout := app.Configuration.ReadTimeout()
 	duration := time.Duration(time.Duration.Seconds(time.Duration(timeout)))
-	restClient := nethttp.New(duration)
+	restClient := nethttp.NewRestHttpClient(duration)
 
-	app.bankTransferService = bankservice.New(
+	app.bankTransferService = bankservice.NewBankService(
 		app.Configuration,
 		transactionRepository,
 		userRepository,
@@ -62,18 +55,8 @@ func NewApp() *App {
 	return app
 }
 
-// loadEnv loads environment variables
-func (app *App) loadEnv() (model.IAppConfiguration, error) {
-	envData, err := godotenv.Read()
-	if err != nil {
-		return nil, errors.New("unable to load env file")
-	}
-	config := NewAppConfiguration(envData)
-	return config, nil
-}
-
-// ConnectDatabase sets up a DB connection configuration
-func (app *App) ConnectDatabase(config model.IAppConfiguration) (*gorm.DB, error) {
+// connectDatabase sets up a DB connection configuration
+func (app *App) connectDatabase(config model.IAppConfiguration) (*gorm.DB, error) {
 	// Get the values from the config struct
 	user := config.Username()
 	password := config.Password()
@@ -103,7 +86,6 @@ func (app *App) ConnectDatabase(config model.IAppConfiguration) (*gorm.DB, error
 	dbConfig.SetConnMaxIdleTime(time.Duration(config.MaximumIdleTime()) * time.Second)
 	dbConfig.SetConnMaxLifetime(time.Duration(config.MaximumTime()) * time.Second)
 	dbConfig.SetMaxIdleConns(config.MaximumIdleConnection())
-	migration.RunMigrations(db)
 	return db, nil
 }
 

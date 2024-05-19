@@ -2,25 +2,19 @@ package middleware
 
 import (
 	"bytes"
+	"encoding/json"
 	"fmt"
 	"io"
 	"log/slog"
-	"strings"
+	"net/http"
 
 	"github.com/gin-gonic/gin"
-	"github.com/mitchellh/mapstructure"
 )
 
 // ResponseWriterType defines a custom response recorder to capture the status code and response body
 type ResponseWriterType struct {
 	gin.ResponseWriter
-	status int
-	body   *bytes.Buffer // Buffer to hold response body
-}
-
-func (r *ResponseWriterType) WriteHeader(statusCode int) {
-	r.status = statusCode
-	r.ResponseWriter.WriteHeader(statusCode)
+	body *bytes.Buffer
 }
 
 func (r *ResponseWriterType) Write(data []byte) (int, error) {
@@ -39,12 +33,14 @@ func (l *LoggingMiddleware) RequestLogger() gin.HandlerFunc {
 	return func(context *gin.Context) {
 		body, err := io.ReadAll(context.Request.Body)
 		if err != nil {
-			slog.Error(err.Error())
+			slog.Error("Error reading request body: %v", err)
+			context.AbortWithStatusJSON(http.StatusInternalServerError, gin.H{"error": "Internal Server Error"})
+			return
 		}
 		context.Request.Body = io.NopCloser(bytes.NewBuffer(body))
-		jsonBody := string(body)
-		data := []byte(strings.ReplaceAll(strings.ReplaceAll(jsonBody, "\n", ""), " ", ""))
-		slog.Info(fmt.Sprintf("Request to Bank Transfer API => %s", data))
+
+		slog.Info(fmt.Sprintf("Request to Bank Transfer API => %s", string(body)))
+
 		context.Next()
 	}
 }
@@ -52,15 +48,17 @@ func (l *LoggingMiddleware) RequestLogger() gin.HandlerFunc {
 // ResponseLogger logs outgoing responses
 func (l *LoggingMiddleware) ResponseLogger() gin.HandlerFunc {
 	return func(context *gin.Context) {
-		recorder := &ResponseWriterType{ResponseWriter: context.Writer}
+		recorder := &ResponseWriterType{ResponseWriter: context.Writer, body: &bytes.Buffer{}}
 		context.Writer = recorder
+
 		context.Next()
+
 		responseBody := recorder.body.String()
 		var responseMap map[string]interface{}
-		err := mapstructure.Decode(responseBody, responseMap)
-		if err != nil {
-			slog.Error(err.Error())
+		if err := json.Unmarshal([]byte(responseBody), &responseMap); err != nil {
+			slog.Error("Error decoding response body: %v", err)
+		} else {
+			slog.Info(fmt.Sprintf("Response from Bank Transfer API => %s", responseBody))
 		}
-		slog.Info(fmt.Sprintf("Response from Bank Transfer API => %s", responseBody))
 	}
 }

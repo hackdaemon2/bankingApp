@@ -18,6 +18,14 @@ import (
 
 var headers = map[string]string{constants.ContentTypeHeader: constants.ContentTypeValue}
 
+type IAccount interface {
+	SetBalance(value decimal.Decimal)
+	GetBalance() decimal.Decimal
+	Deposit(amount decimal.Decimal) error
+	Withdraw(amount decimal.Decimal) error
+	IsInsufficientBalance(amount decimal.Decimal) bool
+}
+
 type IAccountRepository interface {
 	SaveAccount(account *model.Account) error
 	GetAccountByAccountNumber(number string) (*model.Account, error)
@@ -48,57 +56,59 @@ type BankTransferService struct {
 }
 
 type transactionCreatedDTO struct {
-	context             *gin.Context
-	account             *model.Account
-	transactionRequest  model.TransactionRequestDTO
-	statusCode          int
-	bankTransferService *BankTransferService
-	paymentReference    string
-	err                 error
+	context            *gin.Context
+	account            *model.Account
+	transactionRequest model.TransactionRequestDTO
+	statusCode         int
+	reference          string
+	err                error
 }
 
-func New(config model.IAppConfiguration, transactionRepository ITransactionRepository,
-	userRepository IUserRepository, accountRepository IAccountRepository,
-	restHttpClient IRestHttpClient) *BankTransferService {
+func NewBankService(
+	config model.IAppConfiguration,
+	transactionRepo ITransactionRepository,
+	userRepo IUserRepository,
+	accountRepo IAccountRepository,
+	restClient IRestHttpClient) *BankTransferService {
 	return &BankTransferService{
 		Config:                config,
-		TransactionRepository: transactionRepository,
-		UserRepository:        userRepository,
-		AccountRepository:     accountRepository,
-		RestHttpClient:        restHttpClient,
+		TransactionRepository: transactionRepo,
+		UserRepository:        userRepo,
+		AccountRepository:     accountRepo,
+		RestHttpClient:        restClient,
 	}
 }
 
-func (b *BankTransferService) StatusQuery(context *gin.Context) {
-	reference := context.Param("ref")
+func (b *BankTransferService) StatusQuery(c *gin.Context) {
+	reference := c.Param("ref")
 
 	transaction, err := b.TransactionRepository.FindTransactionByReference(reference)
 	if err != nil {
-		utility.HandleError(context, err, http.StatusInternalServerError, err.Error())
+		utility.HandleError(c, err, http.StatusInternalServerError, err.Error())
 		return
 	}
 
 	if transaction.TransactionID == constants.Zero {
-		utility.HandleError(context, nil, http.StatusOK, constants.TransactionNotFound)
+		utility.HandleError(c, nil, http.StatusOK, constants.TransactionNotFound)
 		return
 	}
 
-	url := fmt.Sprintf("%s/api/v1/third-party/payments/%s/get", b.Config.ThirdPartyBaseUrl(), reference)
+	url := fmt.Sprintf("%s/api/v1/third-party/payments/%s/get", b.Config.ThirdPartyBaseUrl(), transaction.Reference)
 
-	response, statusCode, httpErr := b.RestHttpClient.GetRequest(url, headers)
-	if httpErr != nil {
-		utility.HandleError(context, httpErr, http.StatusInternalServerError, constants.ApplicationError)
+	response, statusCode, err := b.RestHttpClient.GetRequest(url, headers)
+	if err != nil {
+		utility.HandleError(c, err, http.StatusServiceUnavailable, constants.UnableToCompleteTransaction)
 		return
 	}
 
 	if statusCode != http.StatusOK {
-		utility.HandleError(context, nil, statusCode, constants.UnableToCompleteTransaction)
+		utility.HandleError(c, nil, http.StatusServiceUnavailable, constants.UnableToCompleteTransaction)
 		return
 	}
 
-	amount, convertErr := decimal.NewFromFloat64(response["amount"].(float64))
-	if convertErr != nil {
-		utility.HandleError(context, convertErr, http.StatusInternalServerError, constants.ApplicationError)
+	amount, err := decimal.NewFromFloat64(response["amount"].(float64))
+	if err != nil {
+		utility.HandleError(c, err, http.StatusInternalServerError, constants.ApplicationError)
 		return
 	}
 
@@ -111,77 +121,65 @@ func (b *BankTransferService) StatusQuery(context *gin.Context) {
 		PaymentReference: transaction.Reference,
 	}
 
-	context.JSON(http.StatusOK, utility.FormulateSuccessResponse(apiResponse))
+	c.JSON(http.StatusOK, utility.FormulateSuccessResponse(apiResponse))
 }
 
-func (b *BankTransferService) validateRequest(context *gin.Context, t model.TransactionRequestDTO) error {
-	if errorMap, vErr := utility.ValidateRequest(t); len(errorMap) != constants.Zero || vErr != nil {
-		if vErr != nil {
-			utility.HandleError(context, vErr, http.StatusInternalServerError, constants.ApplicationError)
-			return vErr
-		}
-		utility.HandleValidationErrors(context, errorMap)
-		return fmt.Errorf("validation error")
-	}
-	return nil
-}
-
-func (b *BankTransferService) Transfer(context *gin.Context) {
+func (b *BankTransferService) Transfer(c *gin.Context) {
 	var t model.TransactionRequestDTO
-	if err := context.BindJSON(&t); err != nil {
-		utility.HandleError(context, err, http.StatusBadRequest, constants.InvalidJsonRequestErrorMsg)
+	if err := c.BindJSON(&t); err != nil {
+		utility.HandleError(c, err, http.StatusBadRequest, constants.InvalidJsonRequestErrorMsg)
 		return
 	}
 
-	if err := b.validateRequest(context, t); err != nil {
+	if err := b.validateTransferRequest(c, t); err != nil {
 		return
 	}
 
 	transaction, err := b.TransactionRepository.FindTransactionByReference(t.Reference)
 	if err != nil {
-		utility.HandleError(context, err, http.StatusInternalServerError, constants.ApplicationError)
+		utility.HandleError(c, err, http.StatusInternalServerError, constants.ApplicationError)
 		return
 	}
 
 	if transaction.TransactionID != constants.Zero {
-		utility.HandleError(context, nil, http.StatusOK, constants.NotUniqueReferenceMsg)
+		utility.HandleError(c, nil, http.StatusOK, constants.NotUniqueReferenceMsg)
 		return
 	}
 
 	user, account, err := b.UserRepository.GetUserByAccountNumber(t.AccountNumber)
 	if err != nil {
-		utility.HandleError(context, err, http.StatusInternalServerError, constants.ApplicationError)
+		utility.HandleError(c, err, http.StatusInternalServerError, constants.ApplicationError)
 		return
 	}
 
 	if user.UserID == constants.Zero || account.AccountID == constants.Zero {
-		utility.HandleError(context, nil, http.StatusOK, constants.UserOrAccountNotFound)
+		utility.HandleError(c, nil, http.StatusOK, constants.UserOrAccountNotFound)
 		return
 	}
 
 	if t.TransactionPin != user.TransactionPin {
-		utility.HandleError(context, nil, http.StatusOK, constants.IncorrectTransactionPin)
+		utility.HandleError(c, nil, http.StatusOK, constants.IncorrectTransactionPin)
 		return
 	}
 
 	if t.Type == model.DebitTransaction && account.IsInsufficientBalance(t.Amount) {
-		utility.HandleError(context, nil, http.StatusOK, constants.InsufficientFunds)
+		utility.HandleError(c, nil, http.StatusOK, constants.InsufficientFunds)
 		return
 	}
 
-	paymentReference := uuid.New().String()
+	reference := uuid.New().String()
 
 	url := fmt.Sprintf("%s/api/v1/third-party/payments", b.Config.ThirdPartyBaseUrl())
 	accountID := strconv.Itoa(int(account.AccountID))
 	request := &model.ThirdPartyTransactionDataDTO{
 		AccountID: accountID,
 		Amount:    t.Amount,
-		Reference: paymentReference,
+		Reference: reference,
 	}
 
-	response, statusCode, httpErr := b.RestHttpClient.PostRequest(url, request, headers)
-	if httpErr != nil {
-		utility.HandleError(context, httpErr, http.StatusInternalServerError, constants.ApplicationError)
+	response, statusCode, err := b.RestHttpClient.PostRequest(url, request, headers)
+	if err != nil {
+		utility.HandleError(c, err, http.StatusInternalServerError, constants.ApplicationError)
 		return
 	}
 
@@ -196,12 +194,11 @@ func (b *BankTransferService) Transfer(context *gin.Context) {
 
 	decoder, err := mapstructure.NewDecoder(config)
 	if err != nil {
-		slog.Error("Error creating decoder: %v", err)
+		slog.Error("map decode error", err) // nolint:govet
 	}
 
-	err = decoder.Decode(response)
-	if err != nil {
-		utility.HandleError(context, err, http.StatusInternalServerError, constants.ApplicationError)
+	if err = decoder.Decode(response); err != nil {
+		utility.HandleError(c, err, http.StatusInternalServerError, constants.ApplicationError)
 		return
 	}
 
@@ -211,10 +208,10 @@ func (b *BankTransferService) Transfer(context *gin.Context) {
 	}
 
 	transactionCreatedDto := transactionCreatedDTO{
-		context:            context,
+		context:            c,
 		account:            account,
 		transactionRequest: t,
-		paymentReference:   paymentReference,
+		reference:          reference,
 		statusCode:         statusCode,
 		err:                err,
 	}
@@ -223,57 +220,63 @@ func (b *BankTransferService) Transfer(context *gin.Context) {
 		return
 	}
 
-	context.JSON(http.StatusOK, utility.FormulateSuccessResponse(apiResponse))
+	c.JSON(http.StatusOK, utility.FormulateSuccessResponse(apiResponse))
+}
+
+func (b *BankTransferService) validateTransferRequest(c *gin.Context, t model.TransactionRequestDTO) error {
+	if errorMap, vErr := utility.ValidateRequest(t); len(errorMap) != constants.Zero || vErr != nil {
+		if vErr != nil {
+			utility.HandleError(c, vErr, http.StatusInternalServerError, constants.ApplicationError)
+			return vErr
+		}
+		utility.HandleValidationErrors(c, errorMap)
+		return fmt.Errorf("validation error")
+	}
+	return nil
 }
 
 func (b *BankTransferService) isTransactionCreated(t transactionCreatedDTO) bool {
-	isNoError := b.isSuccessfulTransaction(t.transactionRequest, t.account, t.context)
-	if isNoError {
-		saveErr := b.AccountRepository.SaveAccount(t.account)
-		if saveErr != nil {
-			slog.Error(t.err.Error())
+	if b.isSuccessfulTransaction(t.transactionRequest, t.account, t.context) {
+		if err := b.AccountRepository.SaveAccount(t.account); err != nil {
+			slog.Error("error in updating account balance", t.err) // nolint:govet
 			utility.InternalServerError(t.context)
 			return false
 		}
 
-		timestamp := time.Now()
 		transaction := &model.Transaction{
 			AccountID:        t.account.AccountID,
 			Amount:           t.transactionRequest.Amount,
 			Type:             t.transactionRequest.Type,
 			Success:          t.statusCode == http.StatusOK,
-			Reference:        t.transactionRequest.Reference,
-			PaymentReference: t.paymentReference,
-			TransactionTime:  timestamp,
+			Reference:        t.reference,
+			PaymentReference: t.transactionRequest.Reference,
+			TransactionTime:  time.Now(),
 			TimestampData: model.TimestampData{
-				CreatedAt: timestamp,
+				CreatedAt: time.Now(),
 			},
 		}
 
-		dbError := b.TransactionRepository.SaveTransaction(transaction)
-		if dbError != nil {
-			slog.Error(dbError.Error())
+		if err := b.TransactionRepository.SaveTransaction(transaction); err != nil {
+			slog.Error("error in save transaction", err) // nolint:govet
 			utility.InternalServerError(t.context)
 			return false
 		}
-
 		return true
 	}
 	return false
 }
 
-func (b *BankTransferService) isSuccessfulTransaction(t model.TransactionRequestDTO,
-	account *model.Account, ctx *gin.Context) bool {
+func (b *BankTransferService) isSuccessfulTransaction(t model.TransactionRequestDTO, a *model.Account, ctx *gin.Context) bool {
 	switch t.Type {
 	case model.DebitTransaction:
-		if err := b.handleDebit(t.Amount, account); err != nil {
-			slog.Error("debit transaction failed: ", err.Error()) // nolint
+		if err := b.handleDebit(t.Amount, a); err != nil {
+			slog.Error("debit transaction failed: ", err) //nolint:govet
 			utility.InternalServerError(ctx)
 			return false
 		}
 	case model.CreditTransaction:
-		if err := b.handleCredit(t.Amount, account); err != nil {
-			slog.Error("credit transaction failed: ", err.Error()) // nolint
+		if err := b.handleCredit(t.Amount, a); err != nil {
+			slog.Error("credit transaction failed: ", err) //nolint:govet
 			utility.InternalServerError(ctx)
 			return false
 		}
@@ -282,7 +285,6 @@ func (b *BankTransferService) isSuccessfulTransaction(t model.TransactionRequest
 		utility.InternalServerError(ctx)
 		return false
 	}
-
 	return true
 }
 

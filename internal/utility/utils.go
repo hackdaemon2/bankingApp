@@ -2,6 +2,7 @@ package utility
 
 import (
 	"bankingApp/internal/api/constants"
+	"bankingApp/internal/model"
 	"log/slog"
 	"net/http"
 	"reflect"
@@ -14,7 +15,7 @@ type APIResponse struct {
 	Message string            `json:"message"`
 	Success bool              `json:"success"`
 	Errors  map[string]string `json:"errors,omitempty"`
-	Data    interface{}       `json:"data,omitempty"`
+	Data    model.ResponseDTO `json:"data,omitempty"`
 }
 
 func InternalServerError(context *gin.Context) {
@@ -28,10 +29,10 @@ func FormulateErrorResponse(message string) *APIResponse {
 	}
 }
 
-func FormulateSuccessResponse(data interface{}) *APIResponse {
+func FormulateSuccessResponse(data model.ResponseDTO) *APIResponse {
 	return &APIResponse{
 		Message: constants.SuccessfulTransactionMsg,
-		Data:    &data,
+		Data:    data,
 		Success: true,
 	}
 }

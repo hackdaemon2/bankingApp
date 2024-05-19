@@ -7,14 +7,14 @@ type IBankTransferService interface {
 	Transfer(context *gin.Context)
 }
 
+type BankTransferHandler struct {
+	BankTransferService IBankTransferService
+}
+
 func NewBankTransferHandler(service IBankTransferService) *BankTransferHandler {
 	return &BankTransferHandler{
 		BankTransferService: service,
 	}
-}
-
-type BankTransferHandler struct {
-	BankTransferService IBankTransferService
 }
 
 func (b *BankTransferHandler) Transfer(context *gin.Context) {

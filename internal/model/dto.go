@@ -1,8 +1,6 @@
 package model
 
 import (
-	"time"
-
 	"github.com/govalues/decimal"
 )
 
@@ -24,7 +22,7 @@ type IAppConfiguration interface {
 }
 
 type ThirdPartyTransactionDataDTO struct {
-	AccountID string          `json:"account_id"`
+	AccountID string          `json:"account_id" mapstructure:"account_id"`
 	Reference string          `json:"reference"`
 	Amount    decimal.Decimal `json:"amount"`
 }
@@ -40,14 +38,6 @@ type CreditRequestDTO struct {
 type ResponseDTO struct {
 	ThirdPartyTransactionDataDTO
 	PaymentReference string `json:"payment_reference"`
-}
-
-type AuthenticationResponseDTO struct {
-	CreatedAt   time.Time `json:"created_at,omitempty"`
-	ExpiresAt   time.Time `json:"expires_at,omitempty"`
-	AccessToken string    `json:"access_token,omitempty"`
-	Success     bool      `json:"success"`
-	Message     string    `json:"message"`
 }
 
 type TransactionType string

@@ -2,43 +2,79 @@ package configuration
 
 import (
 	"bankingApp/internal/model"
+	"errors"
+	"fmt"
+	"log"
+	"log/slog"
+	"os"
 	"strconv"
+
+	"github.com/joho/godotenv"
+	"github.com/spf13/viper"
 )
 
-func NewAppConfiguration(envMap map[string]string) model.IAppConfiguration {
-	return &appConfig{
-		GinRunMode:     envMap["GIN_MODE"],
-		DbUser:         envMap["DB_USER"],
-		DbPass:         envMap["DB_PASSWORD"],
-		DbHost:         envMap["DB_HOST"],
-		DbName:         envMap["DB_NAME"],
-		DbPort:         envMap["DB_PORT"],
-		DbMaxOpen:      envMap["DB_MAX_OPEN"],
-		DbMaxIdle:      envMap["DB_MAX_IDLE_TIME"],
-		DbMaxTime:      envMap["DB_MAX_TIME"],
-		DbMaxConn:      envMap["DB_MAX_IDLE_CONN"],
-		AppReadTimeout: envMap["APP_READ_TIMEOUT"],
-		AppServerPort:  envMap["APP_SERVER_PORT"],
-		ThirdPartyAPI:  envMap["THIRD_PARTY_API"],
-		Secret:         envMap["APP_JWT_SECRET"],
+func newAppConfiguration() model.IAppConfiguration {
+	err := godotenv.Load()
+	if err != nil {
+		log.Fatalf("Error loading .env file: %v", err)
 	}
+
+	configFile := fmt.Sprintf("config-%s.yaml", os.Getenv("environment"))
+
+	cfgFile, err := loadConfig(configFile)
+	if err != nil {
+		log.Fatalf("loadConfig: %v", err)
+	}
+
+	cfg, err := parseConfig(cfgFile)
+	if err != nil {
+		log.Fatalf("parseConfig: %v", err)
+	}
+	return cfg
+}
+
+func loadConfig(filename string) (*viper.Viper, error) {
+	v := viper.New()
+	v.SetConfigType("yaml")
+	v.SetConfigName(filename)
+	v.AddConfigPath(".")
+	v.AutomaticEnv()
+
+	if err := v.ReadInConfig(); err != nil {
+		var configFileNotFoundError viper.ConfigFileNotFoundError
+		if errors.As(err, &configFileNotFoundError) {
+			return nil, errors.New("config file not found")
+		}
+		return nil, err
+	}
+	return v, nil
+}
+
+func parseConfig(v *viper.Viper) (*appConfig, error) {
+	var c appConfig
+	err := v.Unmarshal(&c)
+	if err != nil {
+		slog.Info("unable to decode into struct, %v", err) // nolint
+		return nil, err
+	}
+	return &c, nil
 }
 
 type appConfig struct {
-	GinRunMode     string `env:"GIN_MODE"`
-	DbUser         string `env:"DB_USER"`
-	DbPass         string `env:"DB_PASSWORD"`
-	DbHost         string `env:"DB_HOST"`
-	DbName         string `env:"DB_NAME"`
-	DbPort         string `env:"DB_PORT"`
-	DbMaxOpen      string `env:"DB_MAX_OPEN"`
-	DbMaxIdle      string `env:"DB_MAX_IDLE_TIME"`
-	DbMaxTime      string `env:"DB_MAX_TIME"`
-	DbMaxConn      string `env:"DB_MAX_IDLE_CONN"`
-	AppReadTimeout string `env:"APP_READ_TIMEOUT"`
-	AppServerPort  string `env:"APP_SERVER_PORT"`
-	ThirdPartyAPI  string `env:"THIRD_PARTY_API"`
-	Secret         string `env:"APP_JWT_SECRET"`
+	GinRunMode     string
+	DbUser         string
+	DbPass         string
+	DbHost         string
+	DbName         string
+	DbPort         string
+	DbMaxOpen      string
+	DbMaxIdle      string
+	DbMaxTime      string
+	DbMaxConn      string
+	AppReadTimeout string
+	AppServerPort  string
+	ThirdPartyAPI  string
+	Secret         string
 }
 
 func (a *appConfig) ReadTimeout() uint32 {
