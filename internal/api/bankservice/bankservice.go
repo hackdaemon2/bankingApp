@@ -1,4 +1,4 @@
-package bankservice
+package bankservice // nolint:govet
 
 import (
 	"bankingApp/internal/api/constants"
@@ -196,7 +196,7 @@ func (b *BankTransferService) Transfer(c *gin.Context) {
 
 	decoder, err := mapstructure.NewDecoder(config)
 	if err != nil {
-		slog.Error("map decode error", err) // nolint:govet
+		slog.Error("map decode error", err)
 	}
 
 	if err = decoder.Decode(response); err != nil {
@@ -240,7 +240,7 @@ func (b *BankTransferService) validateTransferRequest(c *gin.Context, t model.Tr
 func (b *BankTransferService) isTransactionCreated(t transactionCreatedDTO) bool {
 	if b.isSuccessfulTransaction(t.transactionRequest, t.account, t.context) {
 		if err := b.AccountRepository.SaveAccount(t.account); err != nil {
-			slog.Error("error in updating account balance", t.err) // nolint:govet
+			slog.Error("error in updating account balance", t.err)
 			utility.InternalServerError(t.context)
 			return false
 		}
@@ -259,7 +259,7 @@ func (b *BankTransferService) isTransactionCreated(t transactionCreatedDTO) bool
 		}
 
 		if err := b.TransactionRepository.SaveTransaction(transaction); err != nil {
-			slog.Error("error in save transaction", err) // nolint:govet
+			slog.Error("error in save transaction", err)
 			utility.InternalServerError(t.context)
 			return false
 		}
