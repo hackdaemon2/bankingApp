@@ -29,7 +29,7 @@ func (t *TransactionRepository) FindTransaction(id uint) (*model.Transaction, er
 func (t *TransactionRepository) FindTransactionByReference(reference string) (*model.Transaction, error) {
 	var transaction model.Transaction
 	err := t.db.
-		Where(&model.Transaction{Reference: reference}).
+		Where(&model.Transaction{PaymentReference: reference}).
 		Find(&transaction).
 		Error
 	return &transaction, err

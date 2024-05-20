@@ -19,11 +19,11 @@ import (
 var headers = map[string]string{constants.ContentTypeHeader: constants.ContentTypeValue}
 
 type IAccount interface {
-	SetBalance(value decimal.NullDecimal)
-	GetBalance() decimal.NullDecimal
-	Deposit(amount decimal.NullDecimal) error
-	Withdraw(amount decimal.NullDecimal) error
-	IsInsufficientBalance(amount decimal.NullDecimal) bool
+	SetBalance(value model.Money)
+	GetBalance() model.Money
+	Deposit(amount model.Money) error
+	Withdraw(amount model.Money) error
+	IsInsufficientBalance(amount model.Money) bool
 }
 
 type IAccountRepository interface {
@@ -119,7 +119,7 @@ func (b *BankTransferService) StatusQuery(c *gin.Context) {
 	apiResponse := model.ResponseDTO{
 		ThirdPartyTransactionDataDTO: model.ThirdPartyTransactionDataDTO{
 			AccountID: response["account_id"].(string),
-			Amount:    decimal.NullDecimal{Decimal: amount},
+			Amount:    &model.Money{Decimal: amount},
 			Reference: response["reference"].(string),
 		},
 		PaymentReference: transaction.Reference,
@@ -179,7 +179,7 @@ func (b *BankTransferService) Transfer(c *gin.Context) {
 	accountID := strconv.Itoa(int(account.AccountID))
 	request := &model.ThirdPartyTransactionDataDTO{
 		AccountID: accountID,
-		Amount:    t.Amount,
+		Amount:    &t.Amount,
 		Reference: reference,
 	}
 
@@ -298,11 +298,11 @@ func (b *BankTransferService) isSuccessfulTransaction(t model.TransactionRequest
 }
 
 // handleDebit updates the account balance by withdrawing the specified amount for a debit transaction.
-func (b *BankTransferService) handleDebit(amount decimal.NullDecimal, account *model.Account) error {
+func (b *BankTransferService) handleDebit(amount model.Money, account *model.Account) error {
 	return account.Withdraw(amount)
 }
 
 // handleCredit updates the account balance by depositing the specified amount for a credit transaction.
-func (b *BankTransferService) handleCredit(amount decimal.NullDecimal, account *model.Account) error {
+func (b *BankTransferService) handleCredit(amount model.Money, account *model.Account) error {
 	return account.Deposit(amount)
 }

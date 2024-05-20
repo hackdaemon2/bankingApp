@@ -2,6 +2,7 @@ package utility
 
 import (
 	"bankingApp/internal/api/constants"
+	"bankingApp/internal/model"
 	"fmt"
 	"log/slog"
 	"net/http"
@@ -12,7 +13,6 @@ import (
 	"github.com/go-playground/locales/en"
 	ut "github.com/go-playground/universal-translator"
 	"github.com/go-playground/validator/v10"
-	"github.com/govalues/decimal"
 )
 
 var (
@@ -20,7 +20,7 @@ var (
 	trans    ut.Translator
 )
 
-// Package level initialization function that sets up custom validations and translations for the validator.
+// init is a package level initialization function that sets up custom validations and translations for the validator.
 // It registers custom validation functions and their translations for various validation error messages.
 // It also defines functions to handle validation errors and validate requests based on the defined rules.
 // Additionally, it includes a custom validation function 'IsPositive' to check if a decimal number is positive.
@@ -121,9 +121,9 @@ func ValidateRequest(request interface{}) (map[string]string, error) {
 	return nil, nil
 }
 
-// IsPositive checks if a decimal.NullDecimal value is positive.
+// IsPositive checks if a model.Money value is positive.
 func IsPositive(fl validator.FieldLevel) bool {
-	val, ok := fl.Field().Interface().(decimal.NullDecimal)
+	val, ok := fl.Field().Interface().(model.Money)
 	if !ok {
 		return false
 	}

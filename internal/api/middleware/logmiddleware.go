@@ -41,10 +41,12 @@ func (l *LoggingMiddleware) RequestLogger() gin.HandlerFunc {
 		context.Request.Body = io.NopCloser(bytes.NewBuffer(body))
 		method := strings.ToLower(context.Request.Method)
 		uri := context.Request.RequestURI
-		if method == "get" || method == "delete" || method == "options" {
+		switch method {
+		case "get", "delete", "options", "headers":
 			slog.Info(fmt.Sprintf("URI: %s | Method: %s", uri, method))
-		} else {
-			slog.Info(fmt.Sprintf("URI: %s | Method: %s | Request to Bank Transfer API => %s", uri, string(body), method))
+		default:
+			format := "URI: %s | Method: %s | Request to Bank Transfer API => %s"
+			slog.Info(fmt.Sprintf(format, uri, strings.ToLower(method), body))
 		}
 		context.Next()
 	}

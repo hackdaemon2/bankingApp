@@ -8,6 +8,7 @@ import (
 	"bytes"
 	"encoding/json"
 	"errors"
+	"fmt"
 	"net/http"
 	"net/http/httptest"
 	"testing"
@@ -26,7 +27,7 @@ type (
 	MockRestHttpClient        struct{ mock.Mock }
 
 	MockAccount struct {
-		Balance decimal.NullDecimal
+		Balance model.Money
 		mock.Mock
 	}
 
@@ -107,24 +108,24 @@ func (m *MockRestHttpClient) PostRequest(
 	return args.Get(0).(map[string]interface{}), args.Int(1), args.Error(2)
 }
 
-func (m *MockAccount) SetBalance(value decimal.NullDecimal) {
+func (m *MockAccount) SetBalance(value model.Money) {
 	m.Balance = value
 }
 
-func (m *MockAccount) GetBalance() decimal.NullDecimal {
+func (m *MockAccount) GetBalance() model.Money {
 	return m.Balance
 }
 
-func (m *MockAccount) Deposit(amount decimal.NullDecimal) error {
+func (m *MockAccount) Deposit(amount model.Money) error {
 	if !amount.Decimal.IsPos() {
 		return errors.New("cannot deposit negative amount")
 	}
 	newBalance, _ := m.Balance.Decimal.Add(amount.Decimal)
-	m.Balance = decimal.NullDecimal{Decimal: newBalance}
+	m.Balance = model.Money{Decimal: newBalance}
 	return nil
 }
 
-func (m *MockAccount) Withdraw(amount decimal.NullDecimal) error {
+func (m *MockAccount) Withdraw(amount model.Money) error {
 	if !amount.Decimal.IsPos() {
 		return errors.New("cannot withdraw negative amount")
 	}
@@ -132,11 +133,11 @@ func (m *MockAccount) Withdraw(amount decimal.NullDecimal) error {
 		return errors.New("insufficient balance")
 	}
 	newBalance, _ := m.Balance.Decimal.Sub(amount.Decimal)
-	m.Balance = decimal.NullDecimal{Decimal: newBalance}
+	m.Balance = model.Money{Decimal: newBalance}
 	return nil
 }
 
-func (m *MockAccount) IsInsufficientBalance(amount decimal.NullDecimal) bool {
+func (m *MockAccount) IsInsufficientBalance(amount model.Money) bool {
 	return m.Balance.Decimal.Cmp(amount.Decimal) == -1
 }
 
@@ -155,7 +156,7 @@ func Test_NewBankService(t *testing.T) {
 
 func Test_StatusQuery(t *testing.T) {
 	val, _ := decimal.NewFromFloat64(100.00)
-	amount := decimal.NullDecimal{Decimal: val}
+	amount := model.Money{Decimal: val}
 	testCases := []struct {
 		name             string
 		reference        string
@@ -267,9 +268,9 @@ func Test_StatusQuery(t *testing.T) {
 
 func Test_Transfer(t *testing.T) {
 	val, _ := decimal.NewFromFloat64(100.00)
-	amount := decimal.NullDecimal{Decimal: val}
+	amount := model.Money{Decimal: val}
 	valInsufficientFunds, _ := decimal.NewFromFloat64(1_000_000_000.00)
-	amountInsufficientFunds := decimal.NullDecimal{Decimal: valInsufficientFunds}
+	amountInsufficientFunds := model.Money{Decimal: valInsufficientFunds}
 	testCases := []struct {
 		name                      string
 		mockTransaction           *model.Transaction
@@ -499,12 +500,12 @@ func getMockNotFoundTransaction() *model.Transaction {
 	}
 }
 
-func getExpectedResponse(amount decimal.NullDecimal) utility.APIResponse {
+func getExpectedResponse(amount model.Money) utility.APIResponse {
 	return utility.APIResponse{
-		Data: model.ResponseDTO{
+		Data: &model.ResponseDTO{
 			ThirdPartyTransactionDataDTO: model.ThirdPartyTransactionDataDTO{
 				AccountID: "1",
-				Amount:    amount,
+				Amount:    &amount,
 				Reference: "aeda214f-513b-4e80-8e9d-2e513054a148",
 			},
 			PaymentReference: "289192938929293",
@@ -536,7 +537,7 @@ func getMockAccount() *model.Account {
 		AccountID:     1,
 		AccountNumber: "1234567890",
 		UserID:        1,
-		Balance:       decimal.NullDecimal{Decimal: balance},
+		Balance:       model.Money{Decimal: balance},
 	}
 }
 
@@ -549,7 +550,7 @@ func getMockUser() *model.User {
 }
 
 func getTransactionRequest(account, username, pin, reference string,
-	transactionType model.TransactionType, amount decimal.NullDecimal) []byte {
+	transactionType model.TransactionType, amount model.Money) []byte {
 	requestBody, _ := json.Marshal(model.TransactionRequestDTO{
 		TransactionDataDTO: model.TransactionDataDTO{
 			AccountNumber:  account,
@@ -560,6 +561,7 @@ func getTransactionRequest(account, username, pin, reference string,
 			Type:           transactionType,
 		},
 	})
+	fmt.Println("AMOUNT => " + string(requestBody))
 	return requestBody
 }
 

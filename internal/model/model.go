@@ -3,8 +3,6 @@ package model
 import (
 	"sync"
 	"time"
-
-	"github.com/govalues/decimal"
 )
 
 type TimestampData struct {
@@ -25,46 +23,46 @@ type Account struct {
 	AccountID     uint   `gorm:"primaryKey"`
 	UserID        uint   // Foreign key referencing the User table
 	AccountNumber string `gorm:"index:idx_account_number;unique"`
-	Balance       decimal.NullDecimal
+	Balance       Money
 	mu            sync.Mutex `gorm:"-"`
 	TimestampData
 }
 
-func (acc *Account) SetBalance(value decimal.NullDecimal) {
+func (acc *Account) SetBalance(value Money) {
 	acc.Balance = value
 }
 
-func (acc *Account) GetBalance() decimal.NullDecimal {
+func (acc *Account) GetBalance() Money {
 	return acc.Balance
 }
 
 const scale = 2
 
-func (acc *Account) Deposit(amount decimal.NullDecimal) error {
+func (acc *Account) Deposit(amount Money) error {
 	acc.mu.Lock()
 	defer acc.mu.Unlock()
 	newBalance, err := acc.GetBalance().Decimal.AddExact(amount.Decimal, scale)
 	if err != nil {
 		return err
 	}
-	acc.SetBalance(decimal.NullDecimal{Decimal: newBalance})
+	acc.SetBalance(Money{Decimal: newBalance})
 	return nil
 }
 
-func (acc *Account) Withdraw(amount decimal.NullDecimal) error {
+func (acc *Account) Withdraw(amount Money) error {
 	acc.mu.Lock()
 	defer acc.mu.Unlock()
 	newBalance, err := acc.GetBalance().Decimal.SubExact(amount.Decimal, scale)
 	if err != nil {
 		return err
 	}
-	acc.SetBalance(decimal.NullDecimal{Decimal: newBalance})
+	acc.SetBalance(Money{Decimal: newBalance})
 	return nil
 }
 
 const insufficientBalanceFlag = -1
 
-func (acc *Account) IsInsufficientBalance(amount decimal.NullDecimal) bool {
+func (acc *Account) IsInsufficientBalance(amount Money) bool {
 	acc.mu.Lock()
 	defer acc.mu.Unlock()
 	return acc.GetBalance().Decimal.Cmp(amount.Decimal) == insufficientBalanceFlag
@@ -75,7 +73,7 @@ type Transaction struct {
 	AccountID        uint   `gorm:"index"`
 	Reference        string `gorm:"index:idx_reference;unique"`
 	PaymentReference string `gorm:"column:payment_reference;index:idx_payment_reference;unique"`
-	Amount           decimal.NullDecimal
+	Amount           Money
 	Type             TransactionType
 	Success          bool
 	TransactionTime  time.Time

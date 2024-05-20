@@ -6,11 +6,12 @@ import (
 	"net/http"
 )
 
+const bytes = 1 << 20
+
 func main() {
 	app := configuration.NewApp()
 	config := app.Configuration
 	routeHandler := app.RouteHandler(config)
-	const bytes = 1 << 20
 	server := &http.Server{
 		Addr:           fmt.Sprintf(":%d", config.ServerPort()),
 		Handler:        routeHandler,

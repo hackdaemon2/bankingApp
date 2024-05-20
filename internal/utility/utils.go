@@ -12,10 +12,10 @@ import (
 )
 
 type APIResponse struct {
-	Message string            `json:"message"`
-	Success bool              `json:"success"`
-	Errors  map[string]string `json:"errors,omitempty"`
-	Data    model.ResponseDTO `json:"data,omitempty"`
+	Message string             `json:"message"`
+	Success bool               `json:"success"`
+	Errors  map[string]string  `json:"errors,omitempty"`
+	Data    *model.ResponseDTO `json:"data,omitempty"`
 }
 
 func InternalServerError(context *gin.Context) {
@@ -32,7 +32,7 @@ func FormulateErrorResponse(message string) *APIResponse {
 func FormulateSuccessResponse(data model.ResponseDTO) *APIResponse {
 	return &APIResponse{
 		Message: constants.SuccessfulTransactionMsg,
-		Data:    data,
+		Data:    &data,
 		Success: true,
 	}
 }
@@ -52,11 +52,11 @@ func Float64ToDecimalHookFunc(from reflect.Type, to reflect.Type, data interface
 		return data, nil
 	}
 
-	if to != reflect.TypeOf(decimal.NullDecimal{}) {
+	if to != reflect.TypeOf(model.Money{}) {
 		return data, nil
 	}
 
 	floatValue := data.(float64)
 	decimalValue, _ := decimal.NewFromFloat64(floatValue)
-	return decimal.NullDecimal{Decimal: decimalValue}, nil
+	return model.Money{Decimal: decimalValue}, nil
 }

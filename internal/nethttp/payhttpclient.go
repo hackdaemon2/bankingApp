@@ -9,8 +9,10 @@ import (
 	"github.com/monaco-io/request"
 )
 
-const PostRequestMethod = "POST"
-const GetRequestMethod = "GET"
+const (
+	PostRequestMethod = "POST"
+	GetRequestMethod  = "GET"
+)
 
 type RestHttpClient struct {
 	Timeout time.Duration
