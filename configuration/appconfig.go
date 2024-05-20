@@ -19,7 +19,7 @@ func newAppConfiguration() model.IAppConfiguration {
 		log.Fatalf("Error loading .env file: %v", err)
 	}
 
-	configFile := fmt.Sprintf("config-%s.yaml", os.Getenv("environment"))
+	configFile := fmt.Sprintf("config-%s.yaml", os.Getenv("ENVIRONMENT"))
 
 	cfgFile, err := loadConfig(configFile)
 	if err != nil {
@@ -39,7 +39,6 @@ func loadConfig(filename string) (*viper.Viper, error) {
 	v.SetConfigName(filename)
 	v.AddConfigPath(".")
 	v.AutomaticEnv()
-
 	if err := v.ReadInConfig(); err != nil {
 		var configFileNotFoundError viper.ConfigFileNotFoundError
 		if errors.As(err, &configFileNotFoundError) {

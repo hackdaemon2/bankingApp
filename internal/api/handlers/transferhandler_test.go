@@ -19,6 +19,8 @@ type (
 	}
 )
 
+// mocks
+
 func (g *GinResponseWriter) Write(data []byte) (int, error) {
 	g.Body = append(g.Body, data...)
 	return g.ResponseWriter.Write(data)
@@ -31,6 +33,8 @@ func (m *MockBankTransferService) StatusQuery(context *gin.Context) {
 func (m *MockBankTransferService) Transfer(context *gin.Context) {
 	m.Called(context).Get(0)
 }
+
+// tests
 
 func Test_NewBankTransferHandler(t *testing.T) {
 	mockBankTransferService := new(MockBankTransferService)

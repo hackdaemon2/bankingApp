@@ -196,7 +196,7 @@ func (b *BankTransferService) Transfer(c *gin.Context) {
 
 	decoder, err := mapstructure.NewDecoder(config)
 	if err != nil {
-		slog.Error("map decode error", err)
+		slog.Error("map decode error", err.Error())
 	}
 
 	if err = decoder.Decode(response); err != nil {
@@ -240,7 +240,7 @@ func (b *BankTransferService) validateTransferRequest(c *gin.Context, t model.Tr
 func (b *BankTransferService) isTransactionCreated(t transactionCreatedDTO) bool {
 	if b.isSuccessfulTransaction(t.transactionRequest, t.account, t.context) {
 		if err := b.AccountRepository.SaveAccount(t.account); err != nil {
-			slog.Error("error in updating account balance", t.err)
+			slog.Error("error in updating account balance", t.err.Error())
 			utility.InternalServerError(t.context)
 			return false
 		}
@@ -259,7 +259,7 @@ func (b *BankTransferService) isTransactionCreated(t transactionCreatedDTO) bool
 		}
 
 		if err := b.TransactionRepository.SaveTransaction(transaction); err != nil {
-			slog.Error("error in save transaction", err)
+			slog.Error("error in save transaction", err.Error())
 			utility.InternalServerError(t.context)
 			return false
 		}

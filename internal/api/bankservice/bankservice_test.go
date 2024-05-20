@@ -36,7 +36,7 @@ type (
 	}
 )
 
-// mock config
+// mocks
 func (a *MockConfig) ReadTimeout() uint32        { return a.Called().Get(0).(uint32) }
 func (a *MockConfig) ServerPort() uint32         { return a.Called().Get(0).(uint32) }
 func (a *MockConfig) ThirdPartyBaseUrl() string  { return a.Called().Get(0).(string) }
@@ -152,27 +152,7 @@ func (m *MockAccount) IsInsufficientBalance(amount model.Money) bool {
 	return balanceVal.Cmp(amountVal) == -1
 }
 
-func setupMocks() (*MockConfig, *MockTransactionRepository, *MockUserRepository,
-	*MockAccountRepository, *MockRestHttpClient, *MockAccount) {
-	return new(MockConfig),
-		new(MockTransactionRepository),
-		new(MockUserRepository),
-		new(MockAccountRepository),
-		new(MockRestHttpClient),
-		new(MockAccount)
-}
-
-func createBankService(config *MockConfig, transactionRepo *MockTransactionRepository,
-	userRepo *MockUserRepository, accountRepo *MockAccountRepository,
-	restClient *MockRestHttpClient) *bankservice.BankTransferService {
-	return &bankservice.BankTransferService{
-		Config:                config,
-		TransactionRepository: transactionRepo,
-		RestHttpClient:        restClient,
-		UserRepository:        userRepo,
-		AccountRepository:     accountRepo,
-	}
-}
+// tests
 
 func Test_NewBankService(t *testing.T) {
 	mockConfig, mockTransactionRepo, mockUserRepo, mockAccountRepo, mockRestClient, _ := setupMocks()
@@ -460,11 +440,14 @@ func Test_Transfer(t *testing.T) {
 
 			mockAccount.On("IsInsufficientBalance", mock.Anything).Return(tt.insufficientBalance)
 
+			var methodName string
 			if tt.transactionType == model.DebitTransaction {
-				mockAccount.On("Withdraw", mock.Anything).Return(tt.transactionTypeSuccessful)
+				methodName = "Withdraw"
 			} else if tt.transactionType == model.CreditTransaction {
-				mockAccount.On("Deposit", mock.Anything).Return(tt.transactionTypeSuccessful)
+				methodName = "Deposit"
 			}
+
+			mockAccount.On(methodName, mock.Anything).Return(tt.transactionTypeSuccessful)
 
 			req, err := http.NewRequest("POST", "/api/v1/bank/fund-transfer", bytes.NewBuffer(tt.requestBody))
 			if err != nil {
@@ -474,13 +457,13 @@ func Test_Transfer(t *testing.T) {
 			}
 
 			recorder := httptest.NewRecorder()
-			c, _ := gin.CreateTestContext(recorder)
-			c.Request = req
+			context, _ := gin.CreateTestContext(recorder)
+			context.Request = req
 
-			w := &GinResponseWriter{ResponseWriter: c.Writer}
-			c.Writer = w
+			w := &GinResponseWriter{ResponseWriter: context.Writer}
+			context.Writer = w
 
-			bankService.Transfer(c)
+			bankService.Transfer(context)
 
 			var returnedResponse utility.APIResponse
 			jsonErr := json.Unmarshal(w.Body, &returnedResponse)
@@ -492,13 +475,15 @@ func Test_Transfer(t *testing.T) {
 
 			t.Logf("response => %s", string(w.Body))
 
-			assert.Equal(t, tt.expectedStatus, c.Writer.Status())
+			assert.Equal(t, tt.expectedStatus, context.Writer.Status())
 			assert.Equal(t, tt.expectedResponse.Success, returnedResponse.Success)
 			assert.Equal(t, tt.expectedResponse.Data, returnedResponse.Data)
 			assert.Equal(t, tt.expectedResponse.Message, returnedResponse.Message)
 		})
 	}
 }
+
+// helper functions
 
 func getSuccessThirdPartyResponse() map[string]interface{} {
 	return map[string]interface{}{
@@ -588,4 +573,26 @@ func getTransactionRequest(account, username, pin, reference string,
 		},
 	})
 	return requestBody
+}
+
+func setupMocks() (*MockConfig, *MockTransactionRepository, *MockUserRepository,
+	*MockAccountRepository, *MockRestHttpClient, *MockAccount) {
+	return new(MockConfig),
+		new(MockTransactionRepository),
+		new(MockUserRepository),
+		new(MockAccountRepository),
+		new(MockRestHttpClient),
+		new(MockAccount)
+}
+
+func createBankService(config *MockConfig, transactionRepo *MockTransactionRepository,
+	userRepo *MockUserRepository, accountRepo *MockAccountRepository,
+	restClient *MockRestHttpClient) *bankservice.BankTransferService {
+	return &bankservice.BankTransferService{
+		Config:                config,
+		TransactionRepository: transactionRepo,
+		RestHttpClient:        restClient,
+		UserRepository:        userRepo,
+		AccountRepository:     accountRepo,
+	}
 }

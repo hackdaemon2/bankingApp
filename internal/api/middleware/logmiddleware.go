@@ -7,6 +7,7 @@ import (
 	"io"
 	"log/slog"
 	"net/http"
+	"strings"
 
 	"github.com/gin-gonic/gin"
 )
@@ -38,9 +39,13 @@ func (l *LoggingMiddleware) RequestLogger() gin.HandlerFunc {
 			return
 		}
 		context.Request.Body = io.NopCloser(bytes.NewBuffer(body))
-
-		slog.Info(fmt.Sprintf("Request to Bank Transfer API => %s", string(body)))
-
+		method := strings.ToLower(context.Request.Method)
+		uri := context.Request.RequestURI
+		if method == "get" || method == "delete" || method == "options" {
+			slog.Info(fmt.Sprintf("URI: %s | Method: %s", uri, method))
+		} else {
+			slog.Info(fmt.Sprintf("URI: %s | Method: %s | Request to Bank Transfer API => %s", uri, string(body), method))
+		}
 		context.Next()
 	}
 }
@@ -50,9 +55,7 @@ func (l *LoggingMiddleware) ResponseLogger() gin.HandlerFunc {
 	return func(context *gin.Context) {
 		recorder := &ResponseWriterType{ResponseWriter: context.Writer, body: &bytes.Buffer{}}
 		context.Writer = recorder
-
 		context.Next()
-
 		responseBody := recorder.body.String()
 		var responseMap map[string]interface{}
 		if err := json.Unmarshal([]byte(responseBody), &responseMap); err != nil {
