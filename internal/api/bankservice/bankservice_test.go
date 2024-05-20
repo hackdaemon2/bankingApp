@@ -57,7 +57,7 @@ func (w *GinResponseWriter) Write(data []byte) (int, error) {
 	return w.ResponseWriter.Write(data)
 }
 
-func (u *MockUserRepository) GetUserByAccountNumber(accountNumber string) (*model.User, *model.Account, error) {
+func (u *MockUserRepository) GetUserAndAccountByAccountNumber(accountNumber string) (*model.User, *model.Account, error) {
 	args := u.Called(accountNumber)
 	return args.Get(0).(*model.User), args.Get(1).(*model.Account), args.Error(2)
 }
@@ -424,7 +424,7 @@ func Test_Transfer(t *testing.T) {
 				Return(tt.restResponse, tt.restStatusCode, tt.restError)
 
 			mockUserRepo.
-				On("GetUserByAccountNumber", mock.Anything).Return(tt.mockUser, tt.mockAccount, nil)
+				On("GetUserAndAccountByAccountNumber", mock.Anything).Return(tt.mockUser, tt.mockAccount, nil)
 
 			mockAccount.On("IsInsufficientBalance", mock.Anything).Return(tt.insufficientBalance)
 

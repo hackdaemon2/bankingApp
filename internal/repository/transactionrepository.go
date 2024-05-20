@@ -10,6 +10,7 @@ type TransactionRepository struct { // TransactionRepository definition
 	db *gorm.DB
 }
 
+// NewTransactionRepository creates a new instance of TransactionRepository with the provided gorm.DB instance.
 func NewTransactionRepository(db *gorm.DB) *TransactionRepository {
 	return &TransactionRepository{db: db}
 }

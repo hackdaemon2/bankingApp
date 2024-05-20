@@ -20,6 +20,10 @@ var (
 	trans    ut.Translator
 )
 
+// Package level initialization function that sets up custom validations and translations for the validator.
+// It registers custom validation functions and their translations for various validation error messages.
+// It also defines functions to handle validation errors and validate requests based on the defined rules.
+// Additionally, it includes a custom validation function 'IsPositive' to check if a decimal number is positive.
 func init() {
 	validate = validator.New()
 	err := validate.RegisterValidation("isPositive", IsPositive)
@@ -86,6 +90,7 @@ func init() {
 	}
 }
 
+// FormulateValidationErrorResponse creates an APIResponse object with a bad request message and provided errors.
 func FormulateValidationErrorResponse(errors map[string]string) *APIResponse {
 	return &APIResponse{
 		Message: constants.BadRequestMessage,
@@ -94,11 +99,13 @@ func FormulateValidationErrorResponse(errors map[string]string) *APIResponse {
 	}
 }
 
+// HandleValidationErrors logs validation errors and sends a bad request response with the formulated error message.
 func HandleValidationErrors(context *gin.Context, validationErrors map[string]string) {
 	slog.Info(fmt.Sprintf("validation errors occurred %v", validationErrors))
 	context.JSON(http.StatusBadRequest, FormulateValidationErrorResponse(validationErrors))
 }
 
+// ValidateRequest validates a request object and returns a map of validation errors.
 func ValidateRequest(request interface{}) (map[string]string, error) {
 	err := validate.Struct(request)
 	if err != nil {
@@ -114,6 +121,7 @@ func ValidateRequest(request interface{}) (map[string]string, error) {
 	return nil, nil
 }
 
+// IsPositive checks if a decimal.NullDecimal value is positive.
 func IsPositive(fl validator.FieldLevel) bool {
 	val, ok := fl.Field().Interface().(decimal.NullDecimal)
 	if !ok {

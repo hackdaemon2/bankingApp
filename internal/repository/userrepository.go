@@ -24,8 +24,8 @@ func (u *UserRepository) FindUserByUsername(username string) (model.User, error)
 	return user, nil
 }
 
-// GetUserByAccountNumber retrieves a user by account number from the database
-func (u *UserRepository) GetUserByAccountNumber(accountNumber string) (*model.User, *model.Account, error) {
+// GetUserAndAccountByAccountNumber retrieves a user by account number from the database
+func (u *UserRepository) GetUserAndAccountByAccountNumber(accountNumber string) (*model.User, *model.Account, error) {
 	var user model.User
 	var account model.Account
 	userResult := u.DB.Joins("JOIN tbl_account ON tbl_user.user_id = tbl_account.user_id").

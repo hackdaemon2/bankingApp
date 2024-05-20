@@ -33,7 +33,7 @@ type IAccountRepository interface {
 
 type IUserRepository interface {
 	FindUserByUsername(username string) (model.User, error)
-	GetUserByAccountNumber(accountNumber string) (*model.User, *model.Account, error)
+	GetUserAndAccountByAccountNumber(accountNumber string) (*model.User, *model.Account, error)
 }
 
 type ITransactionRepository interface {
@@ -64,6 +64,8 @@ type transactionCreatedDTO struct {
 	err                error
 }
 
+// NewBankService initializes a new BankTransferService with the provided dependencies.
+// It returns a pointer to the created BankTransferService instance.
 func NewBankService(
 	config model.IAppConfiguration,
 	transactionRepo ITransactionRepository,
@@ -79,6 +81,8 @@ func NewBankService(
 	}
 }
 
+// StatusQuery handles the status query endpoint for checking transaction status.
+// It retrieves transaction details, makes a request to a third-party service, and returns the response.
 func (b *BankTransferService) StatusQuery(c *gin.Context) {
 	reference := c.Param("ref")
 
@@ -124,6 +128,8 @@ func (b *BankTransferService) StatusQuery(c *gin.Context) {
 	c.JSON(http.StatusOK, utility.FormulateSuccessResponse(apiResponse))
 }
 
+// Transfer handles the transfer endpoint for initiating a transaction.
+// It validates the transfer request, processes the transaction, and saves the transaction details.
 func (b *BankTransferService) Transfer(c *gin.Context) {
 	var t model.TransactionRequestDTO
 	if err := c.BindJSON(&t); err != nil {
@@ -146,7 +152,7 @@ func (b *BankTransferService) Transfer(c *gin.Context) {
 		return
 	}
 
-	user, account, err := b.UserRepository.GetUserByAccountNumber(t.AccountNumber)
+	user, account, err := b.UserRepository.GetUserAndAccountByAccountNumber(t.AccountNumber)
 	if err != nil {
 		utility.HandleError(c, err, http.StatusInternalServerError, constants.ApplicationError)
 		return
@@ -223,6 +229,7 @@ func (b *BankTransferService) Transfer(c *gin.Context) {
 	c.JSON(http.StatusOK, utility.FormulateSuccessResponse(apiResponse))
 }
 
+// validateTransferRequest validates the transaction request data and handles any validation errors.
 func (b *BankTransferService) validateTransferRequest(c *gin.Context, t model.TransactionRequestDTO) error {
 	if errorMap, vErr := utility.ValidateRequest(t); len(errorMap) != constants.Zero || vErr != nil {
 		if vErr != nil {
@@ -235,6 +242,7 @@ func (b *BankTransferService) validateTransferRequest(c *gin.Context, t model.Tr
 	return nil
 }
 
+// isTransactionCreated checks if a transaction was successfully created and updates account and transaction details accordingly.
 func (b *BankTransferService) isTransactionCreated(t transactionCreatedDTO) bool {
 	if b.isSuccessfulTransaction(t.transactionRequest, t.account, t.context) {
 		if err := b.AccountRepository.SaveAccount(t.account); err != nil {
@@ -266,6 +274,7 @@ func (b *BankTransferService) isTransactionCreated(t transactionCreatedDTO) bool
 	return false
 }
 
+// isSuccessfulTransaction processes the transaction based on its type (debit or credit) and updates the account balance.
 func (b *BankTransferService) isSuccessfulTransaction(t model.TransactionRequestDTO, a *model.Account, ctx *gin.Context) bool {
 	switch t.Type {
 	case model.DebitTransaction:
@@ -288,10 +297,12 @@ func (b *BankTransferService) isSuccessfulTransaction(t model.TransactionRequest
 	return true
 }
 
+// handleDebit updates the account balance by withdrawing the specified amount for a debit transaction.
 func (b *BankTransferService) handleDebit(amount decimal.NullDecimal, account *model.Account) error {
 	return account.Withdraw(amount)
 }
 
+// handleCredit updates the account balance by depositing the specified amount for a credit transaction.
 func (b *BankTransferService) handleCredit(amount decimal.NullDecimal, account *model.Account) error {
 	return account.Deposit(amount)
 }
