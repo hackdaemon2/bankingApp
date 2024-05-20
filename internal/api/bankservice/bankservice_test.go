@@ -26,7 +26,7 @@ type (
 	MockRestHttpClient        struct{ mock.Mock }
 
 	MockAccount struct {
-		Balance model.Money
+		Balance decimal.NullDecimal
 		mock.Mock
 	}
 
@@ -107,49 +107,37 @@ func (m *MockRestHttpClient) PostRequest(
 	return args.Get(0).(map[string]interface{}), args.Int(1), args.Error(2)
 }
 
-func (m *MockAccount) SetBalance(value model.Money) {
+func (m *MockAccount) SetBalance(value decimal.NullDecimal) {
 	m.Balance = value
 }
 
-func (m *MockAccount) GetBalance() model.Money {
+func (m *MockAccount) GetBalance() decimal.NullDecimal {
 	return m.Balance
 }
 
-func (m *MockAccount) Deposit(amount model.Money) error {
-	if !amount.IsPos() {
+func (m *MockAccount) Deposit(amount decimal.NullDecimal) error {
+	if !amount.Decimal.IsPos() {
 		return errors.New("cannot deposit negative amount")
 	}
-	balanceValFloat, _ := m.Balance.Float64()
-	balanceVal, _ := decimal.NewFromFloat64(balanceValFloat)
-	amountValFloat, _ := amount.Float64()
-	amountVal, _ := decimal.NewFromFloat64(amountValFloat)
-	balanceVal, _ = balanceVal.Add(amountVal)
-	m.Balance = model.Money{Decimal: balanceVal}
+	newBalance, _ := m.Balance.Decimal.Add(amount.Decimal)
+	m.Balance = decimal.NullDecimal{Decimal: newBalance}
 	return nil
 }
 
-func (m *MockAccount) Withdraw(amount model.Money) error {
-	if !amount.IsPos() {
+func (m *MockAccount) Withdraw(amount decimal.NullDecimal) error {
+	if !amount.Decimal.IsPos() {
 		return errors.New("cannot withdraw negative amount")
 	}
-	balanceValFloat, _ := m.Balance.Float64()
-	balanceVal, _ := decimal.NewFromFloat64(balanceValFloat)
-	amountValFloat, _ := amount.Float64()
-	amountVal, _ := decimal.NewFromFloat64(amountValFloat)
-	if balanceVal.Cmp(amountVal) == -1 {
+	if m.Balance.Decimal.Cmp(amount.Decimal) == -1 {
 		return errors.New("insufficient balance")
 	}
-	balanceVal, _ = balanceVal.Sub(amountVal)
-	m.Balance = model.Money{Decimal: balanceVal}
+	newBalance, _ := m.Balance.Decimal.Sub(amount.Decimal)
+	m.Balance = decimal.NullDecimal{Decimal: newBalance}
 	return nil
 }
 
-func (m *MockAccount) IsInsufficientBalance(amount model.Money) bool {
-	amountValFloat, _ := amount.Float64()
-	amountVal, _ := decimal.NewFromFloat64(amountValFloat)
-	balanceValFloat, _ := m.Balance.Float64()
-	balanceVal, _ := decimal.NewFromFloat64(balanceValFloat)
-	return balanceVal.Cmp(amountVal) == -1
+func (m *MockAccount) IsInsufficientBalance(amount decimal.NullDecimal) bool {
+	return m.Balance.Decimal.Cmp(amount.Decimal) == -1
 }
 
 // tests
@@ -167,7 +155,7 @@ func Test_NewBankService(t *testing.T) {
 
 func Test_StatusQuery(t *testing.T) {
 	val, _ := decimal.NewFromFloat64(100.00)
-	amount := model.Money{Decimal: val}
+	amount := decimal.NullDecimal{Decimal: val}
 	testCases := []struct {
 		name             string
 		reference        string
@@ -279,9 +267,9 @@ func Test_StatusQuery(t *testing.T) {
 
 func Test_Transfer(t *testing.T) {
 	val, _ := decimal.NewFromFloat64(100.00)
-	amount := model.Money{Decimal: val}
+	amount := decimal.NullDecimal{Decimal: val}
 	valInsufficientFunds, _ := decimal.NewFromFloat64(1_000_000_000.00)
-	amountInsufficientFunds := model.Money{Decimal: valInsufficientFunds}
+	amountInsufficientFunds := decimal.NullDecimal{Decimal: valInsufficientFunds}
 	testCases := []struct {
 		name                      string
 		mockTransaction           *model.Transaction
@@ -511,7 +499,7 @@ func getMockNotFoundTransaction() *model.Transaction {
 	}
 }
 
-func getExpectedResponse(amount model.Money) utility.APIResponse {
+func getExpectedResponse(amount decimal.NullDecimal) utility.APIResponse {
 	return utility.APIResponse{
 		Data: model.ResponseDTO{
 			ThirdPartyTransactionDataDTO: model.ThirdPartyTransactionDataDTO{
@@ -548,7 +536,7 @@ func getMockAccount() *model.Account {
 		AccountID:     1,
 		AccountNumber: "1234567890",
 		UserID:        1,
-		Balance:       model.Money{Decimal: balance},
+		Balance:       decimal.NullDecimal{Decimal: balance},
 	}
 }
 
@@ -561,7 +549,7 @@ func getMockUser() *model.User {
 }
 
 func getTransactionRequest(account, username, pin, reference string,
-	transactionType model.TransactionType, amount model.Money) []byte {
+	transactionType model.TransactionType, amount decimal.NullDecimal) []byte {
 	requestBody, _ := json.Marshal(model.TransactionRequestDTO{
 		TransactionDataDTO: model.TransactionDataDTO{
 			AccountNumber:  account,

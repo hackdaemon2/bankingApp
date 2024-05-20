@@ -2,7 +2,6 @@ package utility
 
 import (
 	"bankingApp/internal/api/constants"
-	"bankingApp/internal/model"
 	"fmt"
 	"log/slog"
 	"net/http"
@@ -13,6 +12,7 @@ import (
 	"github.com/go-playground/locales/en"
 	ut "github.com/go-playground/universal-translator"
 	"github.com/go-playground/validator/v10"
+	"github.com/govalues/decimal"
 )
 
 var (
@@ -115,9 +115,9 @@ func ValidateRequest(request interface{}) (map[string]string, error) {
 }
 
 func IsPositive(fl validator.FieldLevel) bool {
-	val, ok := fl.Field().Interface().(model.Money)
+	val, ok := fl.Field().Interface().(decimal.NullDecimal)
 	if !ok {
 		return false
 	}
-	return val.IsPos()
+	return val.Decimal.IsPos()
 }

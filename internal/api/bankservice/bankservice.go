@@ -19,11 +19,11 @@ import (
 var headers = map[string]string{constants.ContentTypeHeader: constants.ContentTypeValue}
 
 type IAccount interface {
-	SetBalance(value model.Money)
-	GetBalance() model.Money
-	Deposit(amount model.Money) error
-	Withdraw(amount model.Money) error
-	IsInsufficientBalance(amount model.Money) bool
+	SetBalance(value decimal.NullDecimal)
+	GetBalance() decimal.NullDecimal
+	Deposit(amount decimal.NullDecimal) error
+	Withdraw(amount decimal.NullDecimal) error
+	IsInsufficientBalance(amount decimal.NullDecimal) bool
 }
 
 type IAccountRepository interface {
@@ -106,9 +106,7 @@ func (b *BankTransferService) StatusQuery(c *gin.Context) {
 		return
 	}
 
-	val, err := decimal.NewFromFloat64(response["amount"].(float64))
-	amount := model.Money{Decimal: val}
-
+	amount, err := decimal.NewFromFloat64(response["amount"].(float64))
 	if err != nil {
 		utility.HandleError(c, err, http.StatusInternalServerError, constants.ApplicationError)
 		return
@@ -117,7 +115,7 @@ func (b *BankTransferService) StatusQuery(c *gin.Context) {
 	apiResponse := model.ResponseDTO{
 		ThirdPartyTransactionDataDTO: model.ThirdPartyTransactionDataDTO{
 			AccountID: response["account_id"].(string),
-			Amount:    amount,
+			Amount:    decimal.NullDecimal{Decimal: amount},
 			Reference: response["reference"].(string),
 		},
 		PaymentReference: transaction.Reference,
@@ -196,7 +194,7 @@ func (b *BankTransferService) Transfer(c *gin.Context) {
 
 	decoder, err := mapstructure.NewDecoder(config)
 	if err != nil {
-		slog.Error("map decode error", err.Error())
+		slog.Error("map decode error", err)
 	}
 
 	if err = decoder.Decode(response); err != nil {
@@ -240,7 +238,7 @@ func (b *BankTransferService) validateTransferRequest(c *gin.Context, t model.Tr
 func (b *BankTransferService) isTransactionCreated(t transactionCreatedDTO) bool {
 	if b.isSuccessfulTransaction(t.transactionRequest, t.account, t.context) {
 		if err := b.AccountRepository.SaveAccount(t.account); err != nil {
-			slog.Error("error in updating account balance", t.err.Error())
+			slog.Error("error in updating account balance", t.err)
 			utility.InternalServerError(t.context)
 			return false
 		}
@@ -259,7 +257,7 @@ func (b *BankTransferService) isTransactionCreated(t transactionCreatedDTO) bool
 		}
 
 		if err := b.TransactionRepository.SaveTransaction(transaction); err != nil {
-			slog.Error("error in save transaction", err.Error())
+			slog.Error("error in save transaction", err)
 			utility.InternalServerError(t.context)
 			return false
 		}
@@ -290,10 +288,10 @@ func (b *BankTransferService) isSuccessfulTransaction(t model.TransactionRequest
 	return true
 }
 
-func (b *BankTransferService) handleDebit(amount model.Money, account *model.Account) error {
+func (b *BankTransferService) handleDebit(amount decimal.NullDecimal, account *model.Account) error {
 	return account.Withdraw(amount)
 }
 
-func (b *BankTransferService) handleCredit(amount model.Money, account *model.Account) error {
+func (b *BankTransferService) handleCredit(amount decimal.NullDecimal, account *model.Account) error {
 	return account.Deposit(amount)
 }

@@ -34,7 +34,7 @@ func (l *LoggingMiddleware) RequestLogger() gin.HandlerFunc {
 	return func(context *gin.Context) {
 		body, err := io.ReadAll(context.Request.Body)
 		if err != nil {
-			slog.Error("Error reading request body: %v", err.Error())
+			slog.Error("Error reading request body: %v", err)
 			context.AbortWithStatusJSON(http.StatusInternalServerError, gin.H{"error": "Internal Server Error"})
 			return
 		}
@@ -59,7 +59,7 @@ func (l *LoggingMiddleware) ResponseLogger() gin.HandlerFunc {
 		responseBody := recorder.body.String()
 		var responseMap map[string]interface{}
 		if err := json.Unmarshal([]byte(responseBody), &responseMap); err != nil {
-			slog.Error("Error decoding response body: %v", err.Error())
+			slog.Error("Error decoding response body: %v", err)
 		} else {
 			slog.Info(fmt.Sprintf("Response from Bank Transfer API => %s", responseBody))
 		}
