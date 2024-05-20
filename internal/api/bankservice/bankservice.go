@@ -11,7 +11,6 @@ import (
 	"time"
 
 	"github.com/gin-gonic/gin"
-	"github.com/google/uuid"
 	"github.com/govalues/decimal"
 	"github.com/mitchellh/mapstructure"
 )
@@ -40,6 +39,7 @@ type ITransactionRepository interface {
 	FindTransaction(id uint) (*model.Transaction, error)
 	FindTransactionByReference(reference string) (*model.Transaction, error)
 	SaveTransaction(transaction *model.Transaction) error
+	GetLastInsertID() (uint, error)
 }
 
 type IRestHttpClient interface {
@@ -122,7 +122,7 @@ func (b *BankTransferService) StatusQuery(c *gin.Context) {
 			Amount:    &model.Money{Decimal: amount},
 			Reference: response["reference"].(string),
 		},
-		PaymentReference: transaction.Reference,
+		PaymentReference: transaction.PaymentReference,
 	}
 
 	c.JSON(http.StatusOK, utility.FormulateSuccessResponse(apiResponse))
@@ -173,7 +173,12 @@ func (b *BankTransferService) Transfer(c *gin.Context) {
 		return
 	}
 
-	reference := uuid.New().String()
+	lastInsertID, err := b.TransactionRepository.GetLastInsertID()
+	if err != nil {
+		utility.HandleError(c, err, http.StatusInternalServerError, constants.ApplicationError)
+		return
+	}
+	reference := fmt.Sprintf("ref%d", lastInsertID+1)
 
 	url := fmt.Sprintf("%s/api/v1/third-party/payments", b.Config.ThirdPartyBaseUrl())
 	accountID := strconv.Itoa(int(account.AccountID))

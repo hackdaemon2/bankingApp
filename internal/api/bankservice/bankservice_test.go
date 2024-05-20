@@ -8,7 +8,6 @@ import (
 	"bytes"
 	"encoding/json"
 	"errors"
-	"fmt"
 	"net/http"
 	"net/http/httptest"
 	"testing"
@@ -81,6 +80,11 @@ func (m *MockTransactionRepository) SaveTransaction(transaction *model.Transacti
 func (m *MockTransactionRepository) FindTransactionByReference(reference string) (*model.Transaction, error) {
 	args := m.Called(reference)
 	return args.Get(0).(*model.Transaction), args.Error(1)
+}
+
+func (m *MockTransactionRepository) GetLastInsertID() (uint, error) {
+	args := m.Called()
+	return args.Get(0).(uint), args.Error(1)
 }
 
 func (a *MockAccountRepository) SaveAccount(account *model.Account) error {
@@ -415,6 +419,9 @@ func Test_Transfer(t *testing.T) {
 				On("FindTransactionByReference", mock.Anything).Return(tt.mockTransaction, tt.dbError)
 
 			mockTransactionRepo.
+				On("GetLastInsertID").Return(uint(1), tt.dbError)
+
+			mockTransactionRepo.
 				On("SaveTransaction", mock.Anything).Return(tt.dbError)
 
 			mockAccountRepo.
@@ -478,7 +485,7 @@ func getSuccessThirdPartyResponse() map[string]interface{} {
 	return map[string]interface{}{
 		"amount":     100.0,
 		"account_id": "1",
-		"reference":  "aeda214f-513b-4e80-8e9d-2e513054a148",
+		"reference":  "ref1",
 	}
 }
 
@@ -488,15 +495,16 @@ func getMockConfig() model.IAppConfiguration {
 
 func getMockFoundTransaction() *model.Transaction {
 	return &model.Transaction{
-		TransactionID: 1,
-		Reference:     "289192938929293",
+		TransactionID:    1,
+		Reference:        "ref1",
+		PaymentReference: "289192938929293",
 	}
 }
 
 func getMockNotFoundTransaction() *model.Transaction {
 	return &model.Transaction{
 		TransactionID: 0,
-		Reference:     "",
+		Reference:     "ref1",
 	}
 }
 
@@ -506,7 +514,7 @@ func getExpectedResponse(amount model.Money) utility.APIResponse {
 			ThirdPartyTransactionDataDTO: model.ThirdPartyTransactionDataDTO{
 				AccountID: "1",
 				Amount:    &amount,
-				Reference: "aeda214f-513b-4e80-8e9d-2e513054a148",
+				Reference: "ref1",
 			},
 			PaymentReference: "289192938929293",
 		},
@@ -561,7 +569,6 @@ func getTransactionRequest(account, username, pin, reference string,
 			Type:           transactionType,
 		},
 	})
-	fmt.Println("AMOUNT => " + string(requestBody))
 	return requestBody
 }
 

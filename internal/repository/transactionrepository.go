@@ -35,6 +35,16 @@ func (t *TransactionRepository) FindTransactionByReference(reference string) (*m
 	return &transaction, err
 }
 
+// GetLastInsertID returns the last inserted transaction ID from the database.
+func (t *TransactionRepository) GetLastInsertID() (uint, error) {
+	var transaction model.Transaction
+	err := t.db.Order("transaction_id DESC").Limit(1).Find(&transaction).Error
+	if err != nil {
+		return 0, err
+	}
+	return transaction.TransactionID, nil
+}
+
 // SaveTransaction saves the transaction details to the DB
 func (t *TransactionRepository) SaveTransaction(transaction *model.Transaction) error {
 	tx := t.db.Begin()
