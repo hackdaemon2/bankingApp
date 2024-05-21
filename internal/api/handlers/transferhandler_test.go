@@ -1,7 +1,6 @@
-package handler_test // nolint:typecheck
+package handler // nolint:typecheck
 
 import (
-	handler "bankingApp/internal/api/handlers"
 	"net/http/httptest"
 	"testing"
 
@@ -19,8 +18,6 @@ type (
 	}
 )
 
-// mocks
-
 func (g *GinResponseWriter) Write(data []byte) (int, error) {
 	g.Body = append(g.Body, data...)
 	return g.ResponseWriter.Write(data)
@@ -34,18 +31,16 @@ func (m *MockBankTransferService) Transfer(context *gin.Context) {
 	m.Called(context).Get(0)
 }
 
-// tests
-
 func Test_NewBankTransferHandler(t *testing.T) {
 	mockBankTransferService := new(MockBankTransferService)
-	transferHandler := handler.NewBankTransferHandler(mockBankTransferService)
+	transferHandler := NewBankTransferHandler(mockBankTransferService)
 	assert.NotNil(t, transferHandler)
 	assert.Equal(t, mockBankTransferService, transferHandler.BankTransferService)
 }
 
 func Test_StatusQuery(t *testing.T) {
 	mockBankTransferService := new(MockBankTransferService)
-	transferHandler := handler.NewBankTransferHandler(mockBankTransferService)
+	transferHandler := NewBankTransferHandler(mockBankTransferService)
 	testCases := []struct {
 		name        string
 		handlerFunc func(*gin.Context)
@@ -71,7 +66,7 @@ func Test_StatusQuery(t *testing.T) {
 
 func Test_Transfer(t *testing.T) {
 	mockBankTransferService := new(MockBankTransferService)
-	transferHandler := handler.NewBankTransferHandler(mockBankTransferService)
+	transferHandler := NewBankTransferHandler(mockBankTransferService)
 	testCases := []struct {
 		name        string
 		handlerFunc func(*gin.Context)

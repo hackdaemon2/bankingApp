@@ -27,9 +27,9 @@ type IAppConfiguration interface {
 }
 
 type ThirdPartyTransactionDataDTO struct {
-	AccountID string `json:"account_id,omitempty" mapstructure:"account_id"`
-	Reference string `json:"reference,omitempty"`
-	Amount    *Money `json:"amount,omitempty"`
+	AccountID string      `json:"account_id,omitempty" mapstructure:"account_id"`
+	Reference string      `json:"reference,omitempty"`
+	Amount    *BigDecimal `json:"amount,omitempty"`
 }
 
 type DebitRequestDTO struct {
@@ -52,11 +52,11 @@ const (
 	CreditTransaction TransactionType = "credit"
 )
 
-type Money struct {
+type BigDecimal struct {
 	decimal.Decimal
 }
 
-func (a *Money) UnmarshalJSON(data []byte) error {
+func (a *BigDecimal) UnmarshalJSON(data []byte) error {
 	var v interface{}
 	if err := json.Unmarshal(data, &v); err != nil {
 		return err
@@ -89,7 +89,7 @@ func (a *Money) UnmarshalJSON(data []byte) error {
 
 const coeff = -1
 
-func (a Money) MarshalJSON() ([]byte, error) {
+func (a BigDecimal) MarshalJSON() ([]byte, error) {
 	if a.Decimal.Cmp(decimal.MustNew(coeff, constants.Zero)) == constants.Zero {
 		return nil, nil
 	}
@@ -101,7 +101,7 @@ type TransactionDataDTO struct {
 	Username       string          `json:"username" validate:"required"`
 	TransactionPin string          `json:"transaction_pin" validate:"required,min=4,max=4"`
 	Reference      string          `json:"payment_reference" validate:"required,min=1,max=255"`
-	Amount         Money           `json:"amount" validate:"required,isPositive"`
+	Amount         BigDecimal      `json:"amount" validate:"required,isPositive"`
 	Type           TransactionType `json:"type" validate:"required,oneof=credit debit"`
 }
 

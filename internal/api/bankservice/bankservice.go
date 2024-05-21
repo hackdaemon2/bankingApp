@@ -18,15 +18,15 @@ import (
 var headers = map[string]string{constants.ContentTypeHeader: constants.ContentTypeValue}
 
 type IAccount interface {
-	SetBalance(value model.Money)
-	GetBalance() model.Money
-	Deposit(amount model.Money) error
-	Withdraw(amount model.Money) error
-	IsInsufficientBalance(amount model.Money) bool
+	SetBalance(value model.BigDecimal)
+	GetBalance() model.BigDecimal
+	Deposit(amount model.BigDecimal) error
+	Withdraw(amount model.BigDecimal) error
+	IsInsufficientBalance(amount model.BigDecimal) bool
 }
 
 type IAccountRepository interface {
-	SaveAccount(account *model.Account) error
+	UpdateAccount(account *model.Account) error
 	GetAccountByAccountNumber(number string) (*model.Account, error)
 }
 
@@ -119,7 +119,7 @@ func (b *BankTransferService) StatusQuery(c *gin.Context) {
 	apiResponse := model.ResponseDTO{
 		ThirdPartyTransactionDataDTO: model.ThirdPartyTransactionDataDTO{
 			AccountID: response["account_id"].(string),
-			Amount:    &model.Money{Decimal: amount},
+			Amount:    &model.BigDecimal{Decimal: amount},
 			Reference: response["reference"].(string),
 		},
 		PaymentReference: transaction.PaymentReference,
@@ -250,7 +250,7 @@ func (b *BankTransferService) validateTransferRequest(c *gin.Context, t model.Tr
 // isTransactionCreated checks if a transaction was successfully created and updates account and transaction details accordingly.
 func (b *BankTransferService) isTransactionCreated(t transactionCreatedDTO) bool {
 	if b.isSuccessfulTransaction(t.transactionRequest, t.account, t.context) {
-		if err := b.AccountRepository.SaveAccount(t.account); err != nil {
+		if err := b.AccountRepository.UpdateAccount(t.account); err != nil {
 			slog.Error("error in updating account balance", t.err)
 			utility.InternalServerError(t.context)
 			return false
@@ -303,11 +303,11 @@ func (b *BankTransferService) isSuccessfulTransaction(t model.TransactionRequest
 }
 
 // handleDebit updates the account balance by withdrawing the specified amount for a debit transaction.
-func (b *BankTransferService) handleDebit(amount model.Money, account *model.Account) error {
+func (b *BankTransferService) handleDebit(amount model.BigDecimal, account *model.Account) error {
 	return account.Withdraw(amount)
 }
 
 // handleCredit updates the account balance by depositing the specified amount for a credit transaction.
-func (b *BankTransferService) handleCredit(amount model.Money, account *model.Account) error {
+func (b *BankTransferService) handleCredit(amount model.BigDecimal, account *model.Account) error {
 	return account.Deposit(amount)
 }

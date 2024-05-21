@@ -121,9 +121,9 @@ func ValidateRequest(request interface{}) (map[string]string, error) {
 	return nil, nil
 }
 
-// IsPositive checks if a model.Money value is positive.
+// IsPositive checks if a model.BigDecimal value is positive.
 func IsPositive(fl validator.FieldLevel) bool {
-	val, ok := fl.Field().Interface().(model.Money)
+	val, ok := fl.Field().Interface().(model.BigDecimal)
 	if !ok {
 		return false
 	}

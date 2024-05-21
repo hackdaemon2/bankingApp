@@ -52,11 +52,11 @@ func Float64ToDecimalHookFunc(from reflect.Type, to reflect.Type, data interface
 		return data, nil
 	}
 
-	if to != reflect.TypeOf(model.Money{}) {
+	if to != reflect.TypeOf(model.BigDecimal{}) {
 		return data, nil
 	}
 
 	floatValue := data.(float64)
 	decimalValue, _ := decimal.NewFromFloat64(floatValue)
-	return model.Money{Decimal: decimalValue}, nil
+	return model.BigDecimal{Decimal: decimalValue}, nil
 }

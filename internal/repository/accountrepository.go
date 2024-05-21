@@ -3,6 +3,7 @@ package repository
 import (
 	"bankingApp/internal/model"
 	"log/slog"
+	"time"
 
 	"gorm.io/gorm"
 )
@@ -18,8 +19,8 @@ func NewAccountRepository(db *gorm.DB) *AccountRepository {
 	}
 }
 
-// SaveAccount saves or updates an account in the database within a transaction
-func (a AccountRepository) SaveAccount(account *model.Account) error {
+// UpdateAccount updates an account in the database within a transaction
+func (a AccountRepository) UpdateAccount(account *model.Account) error {
 	tx := a.db.Begin()
 	defer func() {
 		if r := recover(); r != nil {
@@ -27,7 +28,11 @@ func (a AccountRepository) SaveAccount(account *model.Account) error {
 		}
 	}()
 
-	if err := tx.Save(&account).Error; err != nil {
+	if err := tx.Model(&model.Account{}).Where(model.Account{AccountID: account.AccountID}).
+		UpdateColumns(map[string]interface{}{
+			"balance":    account.Balance,
+			"created_at": time.Now(),
+		}).Error; err != nil {
 		slog.Error(err.Error())
 		tx.Rollback()
 		return err

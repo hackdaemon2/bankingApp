@@ -1,7 +1,6 @@
-package bankservice_test //nolint:typecheck
+package bankservice //nolint:typecheck
 
 import (
-	"bankingApp/internal/api/bankservice"
 	"bankingApp/internal/api/constants"
 	"bankingApp/internal/model"
 	"bankingApp/internal/utility"
@@ -26,7 +25,7 @@ type (
 	MockRestHttpClient        struct{ mock.Mock }
 
 	MockAccount struct {
-		Balance model.Money
+		Balance model.BigDecimal
 		mock.Mock
 	}
 
@@ -36,7 +35,6 @@ type (
 	}
 )
 
-// mocks
 func (a *MockConfig) ReadTimeout() uint32        { return a.Called().Get(0).(uint32) }
 func (a *MockConfig) ServerPort() uint32         { return a.Called().Get(0).(uint32) }
 func (a *MockConfig) ThirdPartyBaseUrl() string  { return a.Called().Get(0).(string) }
@@ -87,7 +85,7 @@ func (m *MockTransactionRepository) GetLastInsertID() (uint, error) {
 	return args.Get(0).(uint), args.Error(1)
 }
 
-func (a *MockAccountRepository) SaveAccount(account *model.Account) error {
+func (a *MockAccountRepository) UpdateAccount(account *model.Account) error {
 	args := a.Called(account)
 	return args.Error(0)
 }
@@ -112,24 +110,24 @@ func (m *MockRestHttpClient) PostRequest(
 	return args.Get(0).(map[string]interface{}), args.Int(1), args.Error(2)
 }
 
-func (m *MockAccount) SetBalance(value model.Money) {
+func (m *MockAccount) SetBalance(value model.BigDecimal) {
 	m.Balance = value
 }
 
-func (m *MockAccount) GetBalance() model.Money {
+func (m *MockAccount) GetBalance() model.BigDecimal {
 	return m.Balance
 }
 
-func (m *MockAccount) Deposit(amount model.Money) error {
+func (m *MockAccount) Deposit(amount model.BigDecimal) error {
 	if !amount.Decimal.IsPos() {
 		return errors.New("cannot deposit negative amount")
 	}
 	newBalance, _ := m.Balance.Decimal.Add(amount.Decimal)
-	m.Balance = model.Money{Decimal: newBalance}
+	m.Balance = model.BigDecimal{Decimal: newBalance}
 	return nil
 }
 
-func (m *MockAccount) Withdraw(amount model.Money) error {
+func (m *MockAccount) Withdraw(amount model.BigDecimal) error {
 	if !amount.Decimal.IsPos() {
 		return errors.New("cannot withdraw negative amount")
 	}
@@ -137,19 +135,17 @@ func (m *MockAccount) Withdraw(amount model.Money) error {
 		return errors.New("insufficient balance")
 	}
 	newBalance, _ := m.Balance.Decimal.Sub(amount.Decimal)
-	m.Balance = model.Money{Decimal: newBalance}
+	m.Balance = model.BigDecimal{Decimal: newBalance}
 	return nil
 }
 
-func (m *MockAccount) IsInsufficientBalance(amount model.Money) bool {
+func (m *MockAccount) IsInsufficientBalance(amount model.BigDecimal) bool {
 	return m.Balance.Decimal.Cmp(amount.Decimal) == -1
 }
 
-// tests
-
 func Test_NewBankService(t *testing.T) {
 	mockConfig, mockTransactionRepo, mockUserRepo, mockAccountRepo, mockRestClient, _ := setupMocks()
-	bankService := bankservice.NewBankService(mockConfig, mockTransactionRepo, mockUserRepo, mockAccountRepo, mockRestClient)
+	bankService := NewBankService(mockConfig, mockTransactionRepo, mockUserRepo, mockAccountRepo, mockRestClient)
 	assert.NotNil(t, bankService)
 	assert.Equal(t, mockConfig, bankService.Config)
 	assert.Equal(t, mockTransactionRepo, bankService.TransactionRepository)
@@ -160,7 +156,7 @@ func Test_NewBankService(t *testing.T) {
 
 func Test_StatusQuery(t *testing.T) {
 	val, _ := decimal.NewFromFloat64(100.00)
-	amount := model.Money{Decimal: val}
+	amount := model.BigDecimal{Decimal: val}
 	testCases := []struct {
 		name             string
 		reference        string
@@ -232,11 +228,13 @@ func Test_StatusQuery(t *testing.T) {
 	}
 	for _, tt := range testCases {
 		t.Run(tt.name, func(t *testing.T) {
+			// ------------ setups ------------
 			mockConfig, mockTransactionRepo, mockUserRepo, mockAccountRepo, mockRestClient, _ := setupMocks()
 			bankService := createBankService(mockConfig, mockTransactionRepo, mockUserRepo, mockAccountRepo, mockRestClient)
 
 			gin.SetMode(gin.TestMode)
 
+			// ------------ expectations ------------
 			mockConfig.On("ThirdPartyBaseUrl").Return(mock.Anything)
 
 			mockTransactionRepo.
@@ -245,6 +243,7 @@ func Test_StatusQuery(t *testing.T) {
 			mockRestClient.
 				On("GetRequest", mock.Anything, mock.Anything).Return(tt.restResponse, tt.restStatusCode, tt.restError)
 
+			// ------------ executions -----------
 			recorder := httptest.NewRecorder()
 			ctx, _ := gin.CreateTestContext(recorder)
 
@@ -262,6 +261,7 @@ func Test_StatusQuery(t *testing.T) {
 				return
 			}
 
+			// ------------ assertions -----------
 			assert.Equal(t, tt.expectedStatus, ctx.Writer.Status())
 			assert.Equal(t, tt.expectedResponse.Success, returnedResponse.Success)
 			assert.Equal(t, tt.expectedResponse.Data, returnedResponse.Data)
@@ -272,9 +272,9 @@ func Test_StatusQuery(t *testing.T) {
 
 func Test_Transfer(t *testing.T) {
 	val, _ := decimal.NewFromFloat64(100.00)
-	amount := model.Money{Decimal: val}
+	amount := model.BigDecimal{Decimal: val}
 	valInsufficientFunds, _ := decimal.NewFromFloat64(1_000_000_000.00)
-	amountInsufficientFunds := model.Money{Decimal: valInsufficientFunds}
+	amountInsufficientFunds := model.BigDecimal{Decimal: valInsufficientFunds}
 	testCases := []struct {
 		name                      string
 		mockTransaction           *model.Transaction
@@ -403,14 +403,103 @@ func Test_Transfer(t *testing.T) {
 			transactionTypeSuccessful: false,
 			transactionType:           model.DebitTransaction,
 		},
+		{
+			name:             "find transaction throws DB error test case",
+			mockTransaction:  nil,
+			dbError:          errors.New("dummy error"),
+			expectedResponse: getErrorResponse(constants.ApplicationError),
+			expectedStatus:   http.StatusInternalServerError,
+			config:           getMockConfig(),
+			requestBody: getTransactionRequest(
+				"1234567890",
+				"johndoe",
+				"1234",
+				"289192938929293",
+				model.DebitTransaction,
+				amount),
+			transactionType: model.DebitTransaction,
+		},
+		{
+			name:             "transaction found test case",
+			mockTransaction:  getMockFoundTransaction(),
+			dbError:          nil,
+			expectedResponse: getErrorResponse(constants.NotUniqueReferenceMsg),
+			expectedStatus:   http.StatusOK,
+			config:           getMockConfig(),
+			requestBody: getTransactionRequest(
+				"1234567890",
+				"johndoe",
+				"1234",
+				"289192938929293",
+				model.DebitTransaction,
+				amount),
+			transactionType: model.DebitTransaction,
+		},
+		{
+			name:             "account not found test case",
+			mockTransaction:  getMockNotFoundTransaction(),
+			dbError:          nil,
+			mockAccount:      &model.Account{},
+			expectedResponse: getErrorResponse(constants.UserOrAccountNotFound),
+			expectedStatus:   http.StatusOK,
+			config:           getMockConfig(),
+			requestBody: getTransactionRequest(
+				"1234567890",
+				"johndoe",
+				"1234",
+				"289192938929293",
+				model.DebitTransaction,
+				amount),
+			mockUser:        getMockUser(),
+			transactionType: model.DebitTransaction,
+		},
+		{
+			name:             "user not found test case",
+			mockTransaction:  getMockNotFoundTransaction(),
+			dbError:          nil,
+			mockAccount:      getMockAccount(),
+			expectedResponse: getErrorResponse(constants.UserOrAccountNotFound),
+			expectedStatus:   http.StatusOK,
+			config:           getMockConfig(),
+			requestBody: getTransactionRequest(
+				"1234567890",
+				"johndoe",
+				"1234",
+				"289192938929293",
+				model.DebitTransaction,
+				amount),
+			mockUser:        &model.User{},
+			transactionType: model.DebitTransaction,
+		},
+		{
+			name:             "API call returns error",
+			mockTransaction:  getMockNotFoundTransaction(),
+			dbError:          nil,
+			expectedResponse: *utility.FormulateErrorResponse(constants.ApplicationError),
+			expectedStatus:   http.StatusInternalServerError,
+			config:           getMockConfig(),
+			restStatusCode:   0,
+			restError:        errors.New("unable to reach server"),
+			mockAccount:      getMockAccount(),
+			mockUser:         getMockUser(),
+			requestBody: getTransactionRequest(
+				"1234567890",
+				"johndoe",
+				"1234",
+				"289192938929293",
+				model.DebitTransaction,
+				amount),
+		},
 	}
 	for _, tt := range testCases {
 		t.Run(tt.name, func(t *testing.T) {
+			// ------------ setups ------------
 			mockConfig, mockTransactionRepo, mockUserRepo, mockAccountRepo, mockRestClient, mockAccount := setupMocks()
 			bankService := createBankService(mockConfig, mockTransactionRepo, mockUserRepo, mockAccountRepo, mockRestClient)
 
 			gin.SetMode(gin.TestMode)
 
+			// ------------ expectations ------------
 			mockConfig.
 				On("ThirdPartyBaseUrl").
 				Return(mock.Anything)
@@ -425,7 +514,7 @@ func Test_Transfer(t *testing.T) {
 				On("SaveTransaction", mock.Anything).Return(tt.dbError)
 
 			mockAccountRepo.
-				On("SaveAccount", mock.Anything).Return(tt.dbError)
+				On("UpdateAccount", mock.Anything).Return(tt.dbError)
 
 			mockRestClient.
 				On("PostRequest", mock.Anything, mock.Anything, mock.Anything).
@@ -445,6 +534,7 @@ func Test_Transfer(t *testing.T) {
 
 			mockAccount.On(methodName, mock.Anything).Return(tt.transactionTypeSuccessful)
 
+			// ------------ executions -----------
 			req, err := http.NewRequest("POST", "/api/v1/bank/fund-transfer", bytes.NewBuffer(tt.requestBody))
 			if err != nil {
 				t.Logf("Error creating request: %v", err)
@@ -471,6 +561,7 @@ func Test_Transfer(t *testing.T) {
 
 			t.Logf("response => %s", string(w.Body))
 
+			// ------------ assertions -----------
 			assert.Equal(t, tt.expectedStatus, context.Writer.Status())
 			assert.Equal(t, tt.expectedResponse.Success, returnedResponse.Success)
 			assert.Equal(t, tt.expectedResponse.Data, returnedResponse.Data)
@@ -508,7 +599,7 @@ func getMockNotFoundTransaction() *model.Transaction {
 	}
 }
 
-func getExpectedResponse(amount model.Money) utility.APIResponse {
+func getExpectedResponse(amount model.BigDecimal) utility.APIResponse {
 	return utility.APIResponse{
 		Data: &model.ResponseDTO{
 			ThirdPartyTransactionDataDTO: model.ThirdPartyTransactionDataDTO{
@@ -545,7 +636,7 @@ func getMockAccount() *model.Account {
 		AccountID:     1,
 		AccountNumber: "1234567890",
 		UserID:        1,
-		Balance:       model.Money{Decimal: balance},
+		Balance:       model.BigDecimal{Decimal: balance},
 	}
 }
 
@@ -558,7 +649,7 @@ func getMockUser() *model.User {
 }
 
 func getTransactionRequest(account, username, pin, reference string,
-	transactionType model.TransactionType, amount model.Money) []byte {
+	transactionType model.TransactionType, amount model.BigDecimal) []byte {
 	requestBody, _ := json.Marshal(model.TransactionRequestDTO{
 		TransactionDataDTO: model.TransactionDataDTO{
 			AccountNumber:  account,
@@ -584,8 +675,8 @@ func setupMocks() (*MockConfig, *MockTransactionRepository, *MockUserRepository,
 
 func createBankService(config *MockConfig, transactionRepo *MockTransactionRepository,
 	userRepo *MockUserRepository, accountRepo *MockAccountRepository,
-	restClient *MockRestHttpClient) *bankservice.BankTransferService {
-	return &bankservice.BankTransferService{
+	restClient *MockRestHttpClient) *BankTransferService {
+	return &BankTransferService{
 		Config:                config,
 		TransactionRepository: transactionRepo,
 		RestHttpClient:        restClient,
