@@ -11,7 +11,6 @@ import (
 	"time"
 
 	"github.com/gin-gonic/gin"
-	"github.com/govalues/decimal"
 	"github.com/mitchellh/mapstructure"
 )
 
@@ -110,17 +109,12 @@ func (b *BankTransferService) StatusQuery(c *gin.Context) {
 		return
 	}
 
-	amount, err := decimal.NewFromFloat64(response["amount"].(float64))
-	if err != nil {
-		utility.HandleError(c, err, http.StatusInternalServerError, constants.ApplicationError)
-		return
-	}
-
+	amount := transaction.Amount.Decimal
 	apiResponse := model.ResponseDTO{
 		ThirdPartyTransactionDataDTO: model.ThirdPartyTransactionDataDTO{
 			AccountID: response["account_id"].(string),
 			Amount:    &model.BigDecimal{Decimal: amount},
-			Reference: response["reference"].(string),
+			Reference: transaction.Reference,
 		},
 		PaymentReference: transaction.PaymentReference,
 	}

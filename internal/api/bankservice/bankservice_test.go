@@ -585,10 +585,13 @@ func getMockConfig() model.IAppConfiguration {
 }
 
 func getMockFoundTransaction() *model.Transaction {
+	val, _ := decimal.NewFromFloat64(100.00)
+	amount := model.BigDecimal{Decimal: val}
 	return &model.Transaction{
 		TransactionID:    1,
 		Reference:        "ref1",
 		PaymentReference: "289192938929293",
+		Amount:           amount,
 	}
 }
 
