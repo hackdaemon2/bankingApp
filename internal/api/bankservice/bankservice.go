@@ -135,43 +135,16 @@ func (b *BankTransferService) Transfer(c *gin.Context) {
 		return
 	}
 
-	transaction, err := b.TransactionRepository.FindTransactionByReference(t.Reference)
-	if err != nil {
-		utility.HandleError(c, err, http.StatusInternalServerError, constants.ApplicationError)
+	err, account, complete := b.processValidation(c, t)
+	if complete {
 		return
 	}
 
-	if transaction.TransactionID != constants.Zero {
-		utility.HandleError(c, nil, http.StatusOK, constants.NotUniqueReferenceMsg)
+	lastInsertID, done := b.getLastInsertID(c, err)
+	if done {
 		return
 	}
 
-	user, account, err := b.UserRepository.GetUserAndAccountByAccountNumber(t.AccountNumber)
-	if err != nil {
-		utility.HandleError(c, err, http.StatusInternalServerError, constants.ApplicationError)
-		return
-	}
-
-	if user.UserID == constants.Zero || account.AccountID == constants.Zero {
-		utility.HandleError(c, nil, http.StatusOK, constants.UserOrAccountNotFound)
-		return
-	}
-
-	if t.TransactionPin != user.TransactionPin {
-		utility.HandleError(c, nil, http.StatusOK, constants.IncorrectTransactionPin)
-		return
-	}
-
-	if t.Type == model.DebitTransaction && account.IsInsufficientBalance(t.Amount) {
-		utility.HandleError(c, nil, http.StatusOK, constants.InsufficientFunds)
-		return
-	}
-
-	lastInsertID, err := b.TransactionRepository.GetLastInsertID()
-	if err != nil {
-		utility.HandleError(c, err, http.StatusInternalServerError, constants.ApplicationError)
-		return
-	}
 	reference := fmt.Sprintf("ref%d", lastInsertID+1)
 
 	url := fmt.Sprintf("%s/api/v1/third-party/payments", b.Config.ThirdPartyBaseUrl())
@@ -183,7 +156,7 @@ func (b *BankTransferService) Transfer(c *gin.Context) {
 	}
 
 	response, statusCode, err := b.RestHttpClient.PostRequest(url, request, headers)
-	if err != nil {
+	if err != nil || statusCode != http.StatusOK {
 		utility.HandleError(c, err, http.StatusInternalServerError, constants.ApplicationError)
 		return
 	}
@@ -226,6 +199,51 @@ func (b *BankTransferService) Transfer(c *gin.Context) {
 	}
 
 	c.JSON(http.StatusOK, utility.FormulateSuccessResponse(apiResponse))
+}
+
+func (b *BankTransferService) processValidation(c *gin.Context, t model.TransactionRequestDTO) (error, *model.Account, bool) {
+	transaction, err := b.TransactionRepository.FindTransactionByReference(t.Reference)
+	if err != nil {
+		utility.HandleError(c, err, http.StatusInternalServerError, constants.ApplicationError)
+		return nil, nil, true
+	}
+
+	if transaction.TransactionID != constants.Zero {
+		utility.HandleError(c, nil, http.StatusOK, constants.NotUniqueReferenceMsg)
+		return nil, nil, true
+	}
+
+	user, account, err := b.UserRepository.GetUserAndAccountByAccountNumber(t.AccountNumber)
+	if err != nil {
+		utility.HandleError(c, err, http.StatusInternalServerError, constants.ApplicationError)
+		return nil, nil, true
+	}
+
+	if user.UserID == constants.Zero || account.AccountID == constants.Zero {
+		utility.HandleError(c, nil, http.StatusOK, constants.UserOrAccountNotFound)
+		return nil, nil, true
+	}
+
+	if t.TransactionPin != user.TransactionPin {
+		utility.HandleError(c, nil, http.StatusOK, constants.IncorrectTransactionPin)
+		return nil, nil, true
+	}
+
+	if t.Type == model.DebitTransaction && account.IsInsufficientBalance(t.Amount) {
+		utility.HandleError(c, nil, http.StatusOK, constants.InsufficientFunds)
+		return nil, nil, true
+	}
+
+	return err, account, false
+}
+
+func (b *BankTransferService) getLastInsertID(c *gin.Context, err error) (uint, bool) {
+	lastInsertID, err := b.TransactionRepository.GetLastInsertID()
+	if err != nil {
+		utility.HandleError(c, err, http.StatusInternalServerError, constants.ApplicationError)
+		return 0, true
+	}
+	return lastInsertID, false
 }
 
 // validateTransferRequest validates the transaction request data and handles any validation errors.

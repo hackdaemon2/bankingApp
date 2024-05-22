@@ -273,8 +273,9 @@ func Test_StatusQuery(t *testing.T) {
 func Test_Transfer(t *testing.T) {
 	val, _ := decimal.NewFromFloat64(100.00)
 	amount := model.BigDecimal{Decimal: val}
-	valInsufficientFunds, _ := decimal.NewFromFloat64(1_000_000_000.00)
-	amountInsufficientFunds := model.BigDecimal{Decimal: valInsufficientFunds}
+	val, _ = decimal.NewFromFloat64(1_000_000_000.00)
+	amountInsufficientFunds := model.BigDecimal{Decimal: val}
+	expectedBalance := getExpectedBalance()
 	testCases := []struct {
 		name                      string
 		mockTransaction           *model.Transaction
@@ -292,6 +293,7 @@ func Test_Transfer(t *testing.T) {
 		insufficientBalance       bool
 		transactionType           model.TransactionType
 		transactionTypeSuccessful bool
+		expectedBalance           model.BigDecimal
 	}{
 		{
 			name:             "successful debit test case",
@@ -315,6 +317,30 @@ func Test_Transfer(t *testing.T) {
 			insufficientBalance:       false,
 			transactionTypeSuccessful: true,
 			transactionType:           model.DebitTransaction,
+			expectedBalance:           expectedBalance,
+		},
+		{
+			name:             "check DB balance is updated",
+			mockTransaction:  getMockNotFoundTransaction(),
+			mockAccount:      getMockAccount(),
+			restResponse:     getSuccessThirdPartyResponse(),
+			restStatusCode:   http.StatusOK,
+			expectedStatus:   http.StatusOK,
+			restError:        nil,
+			dbError:          nil,
+			mockUser:         getMockUser(),
+			expectedResponse: getExpectedResponse(amount),
+			requestBody: getTransactionRequest(
+				"1234567890",
+				"johndoe",
+				"1234",
+				"289192938929293",
+				model.DebitTransaction,
+				amount),
+			insufficientBalance:       false,
+			transactionTypeSuccessful: true,
+			transactionType:           model.DebitTransaction,
+			expectedBalance:           expectedBalance,
 		},
 		{
 			name:             "successful credit test case",
@@ -327,6 +353,7 @@ func Test_Transfer(t *testing.T) {
 			expectedResponse: getExpectedResponse(amount),
 			expectedStatus:   http.StatusOK,
 			config:           getMockConfig(),
+			expectedBalance:  getExpectedCreditBalance(),
 			requestBody: getTransactionRequest(
 				"1234567890",
 				"johndoe",
@@ -563,6 +590,14 @@ func Test_Transfer(t *testing.T) {
 
 			// ------------ assertions -----------
 			assert.Equal(t, tt.expectedStatus, context.Writer.Status())
+
+			// get balance after debit
+			var balance model.BigDecimal
+			if tt.mockAccount != nil && returnedResponse.Success {
+				balance = tt.mockAccount.GetBalance()
+				assert.Equal(t, tt.expectedBalance, balance)
+			}
+
 			assert.Equal(t, tt.expectedResponse.Success, returnedResponse.Success)
 			assert.Equal(t, tt.expectedResponse.Data, returnedResponse.Data)
 			assert.Equal(t, tt.expectedResponse.Message, returnedResponse.Message)
@@ -571,6 +606,17 @@ func Test_Transfer(t *testing.T) {
 }
 
 // helper functions
+func getExpectedBalance() model.BigDecimal {
+	expectedBalanceVal, _ := decimal.New(9990000, 2)
+	expectedBalance := model.BigDecimal{Decimal: expectedBalanceVal}
+	return expectedBalance
+}
+
+func getExpectedCreditBalance() model.BigDecimal {
+	expectedBalanceVal, _ := decimal.New(10010000, 2)
+	expectedBalance := model.BigDecimal{Decimal: expectedBalanceVal}
+	return expectedBalance
+}
 
 func getSuccessThirdPartyResponse() map[string]interface{} {
 	return map[string]interface{}{
@@ -634,7 +680,7 @@ func getErrorResponse(message string) utility.APIResponse {
 }
 
 func getMockAccount() *model.Account {
-	balance, _ := decimal.NewFromFloat64(100000)
+	balance, _ := decimal.NewFromFloat64(100_000)
 	return &model.Account{
 		AccountID:     1,
 		AccountNumber: "1234567890",

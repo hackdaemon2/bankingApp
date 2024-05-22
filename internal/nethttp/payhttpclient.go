@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"log/slog"
+	"net/http"
 	"time"
 
 	"github.com/monaco-io/request"
@@ -102,12 +103,12 @@ func (h *RestHttpClient) sendHttpRequest(
 	httpRequest := client.Send()
 	err = httpRequest.ScanJSON(&result).Error()
 	if err != nil {
-		return nil, 0, err
+		return nil, httpRequest.Response().StatusCode, err
 	}
 
 	err = h.logResponse(result)
 	if err != nil {
-		return nil, 0, err
+		return nil, http.StatusInternalServerError, err
 	}
 
 	return result, httpRequest.Response().StatusCode, nil
